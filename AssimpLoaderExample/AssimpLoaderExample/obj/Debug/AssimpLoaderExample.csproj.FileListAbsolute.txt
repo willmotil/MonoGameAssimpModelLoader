@@ -1,0 +1,86 @@
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\MonoGame.Framework.dll.config
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\head.xnb
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\jacket.xnb
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\MgGenFont.xnb
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\pants.xnb
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\RiggedModelEffect.xnb
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\TriangleDraw.xnb
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\upBodyC.xnb
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\SDL2.dll
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\SDL2.dll
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\soft_oal.dll
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\soft_oal.dll
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\libSDL2-2.0.so.0
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\libSDL2-2.0.so.0
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\libopenal.so.1
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\libopenal.so.1
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\libSDL2-2.0.0.dylib
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\libopenal.1.dylib
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Assets\dude.fbx
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpLoaderExample.exe
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpLoaderExample.pdb
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpNet.dll
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\MonoGame.Framework.dll
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpNet.xml
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.csproj.CoreCompileInputs.cache
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.csproj.CopyComplete
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.exe
+C:\Users\will\source\repos\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.pdb
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\MonoGame.Framework.dll.config
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Assets\dude.fbx
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\head.xnb
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\jacket.xnb
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\MgGenFont.xnb
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\pants.xnb
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\RiggedModelEffect.xnb
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\TriangleDraw.xnb
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\upBodyC.xnb
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\SDL2.dll
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\SDL2.dll
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\soft_oal.dll
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\soft_oal.dll
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\libSDL2-2.0.so.0
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\libSDL2-2.0.so.0
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\libopenal.so.1
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\libopenal.so.1
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\libSDL2-2.0.0.dylib
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\libopenal.1.dylib
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpLoaderExample.exe
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpLoaderExample.pdb
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpNet.dll
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\MonoGame.Framework.dll
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpNet.xml
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.csproj.CoreCompileInputs.cache
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.csproj.CopyComplete
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.exe
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.pdb
+C:\Users\Owner\MainFiles\Currently working on\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.csprojAssemblyReference.cache
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\SDL2.dll
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\SDL2.dll
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\soft_oal.dll
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\soft_oal.dll
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\libSDL2-2.0.so.0
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\libSDL2-2.0.so.0
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x86\libopenal.so.1
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\x64\libopenal.so.1
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\libSDL2-2.0.0.dylib
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\libopenal.1.dylib
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\MonoGame.Framework.dll.config
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Assets\dude.fbx
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\head.xnb
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\jacket.xnb
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\MgGenFont.xnb
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\pants.xnb
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\RiggedModelEffect.xnb
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\TriangleDraw.xnb
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\Content\upBodyC.xnb
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpLoaderExample.exe
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpLoaderExample.pdb
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpNet.dll
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\MonoGame.Framework.dll
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\bin\DesktopGL\AnyCPU\Debug\AssimpNet.xml
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.csproj.CoreCompileInputs.cache
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.csproj.CopyComplete
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.exe
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.pdb
+C:\Users\will\MainFiles\MyProjects2018\AssimpLoaderExample\AssimpLoaderExample\obj\Debug\AssimpLoaderExample.csprojAssemblyReference.cache
