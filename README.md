@@ -3,10 +3,11 @@ A repo for work on a open assimp dot net model loader and model class for the Mo
 
 This is currently a work in progress while it basically loads and displays some animated models. 
 It is currently in what id call prototyping phase tons of stuff needs to still be done.
+At the moment its pretty raw and somewhat a mess.
 
 Future plans later down the road is to add a few things to edit the models if possible.
 
-* Animation edit to add or edit animations.
+* Animation edit to add to or edit animations.
 
 * A bone edit to add bones.
 
