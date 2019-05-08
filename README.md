@@ -14,4 +14,4 @@ qe forward back the arrows are strafing movement zc roll and aswd are look at ke
 
 .
 
- <img src="https://raw.githubusercontent.com/willmotil/MonoGameAssimpModelLoader/master/Dude.png"  height="600" width="400"> 
+ <img src="https://raw.githubusercontent.com/willmotil/MonoGameAssimpModelLoader/master/Dude.png"  height="400" width="600"> 
