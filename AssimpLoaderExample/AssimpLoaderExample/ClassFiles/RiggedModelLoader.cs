@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +14,12 @@ using Assimp;                               // note: install AssimpNET 4.1 via n
 
 
 // TODO's  see the model class for more.  
+//
+// ARRRRGGG Ok much bigger problem the winding on the vertices are ccw and in many cases ill need cw wound vertices.
+// Because i don't know exactly were the normals are being ignored but somewere down the line between monogame to dx gl
+// The normals are calculated by the vertice winding and the actual normal data is ignored for the lighting.
+//
+//
 // organize the reading order so it looks a little more readable and clear.
 //
 //
@@ -47,6 +53,12 @@ namespace AssimpLoaderExample
 
         public static ContentManager content;
         public static Effect effectToUse;
+        public static Texture2D DefaultTexture { get; set; }
+
+        /// <summary>
+        /// Reverses the models winding typically this will change the model vertices to counter clockwise winding ccw.
+        /// </summary>
+        public bool ReverseVerticeWinding = false;
 
         public bool startupconsoleinfo = true;
         public bool startupAnimationConsoleInfo = true;
@@ -116,12 +128,16 @@ namespace AssimpLoaderExample
                                         | PostProcessSteps.FindInvalidData
                                         | PostProcessSteps.ImproveCacheLocality
                                         | PostProcessSteps.FindDegenerates
+                                        | PostProcessSteps.SortByPrimitiveType
                                         | PostProcessSteps.OptimizeMeshes
                                         | PostProcessSteps.OptimizeGraph // normal
-                                                                         //| PostProcessSteps.RemoveRedundantMaterials // sketchy
-                                                                         //| PostProcessSteps.PreTransformVertices
-                                                                         //| PostProcessSteps.GenerateUVCoords
-                                                                         // PostProcessSteps.ValidateDataStructure
+                                        //| PostProcessSteps.FixInFacingNormals
+                                        | PostProcessSteps.ValidateDataStructure
+                                        //| PostProcessSteps.GlobalScale
+                                        //| PostProcessSteps.RemoveRedundantMaterials // sketchy
+                                        //| PostProcessSteps.PreTransformVertices
+                                        //| PostProcessSteps.GenerateUVCoords
+                                        // PostProcessSteps.ValidateDataStructure
                                         );
             }
             catch (Exception e)
@@ -164,8 +180,8 @@ namespace AssimpLoaderExample
             SetModelMeshTransformsRecursively(model, scene.RootNode, 0, 0);
 
             //// take a look at material information.
-            //Console.WriteLine("\n@@@GetMaterialsInfoForNow");
-            //GetMaterialsInfoForNow(model, scene);
+            Console.WriteLine("\n@@@GetMaterialsInfoForNow");
+            GetMaterialsInfoForNow(model, scene);
 
             // prep to build a models tree.
             Console.WriteLine("\n@@@prep to build a models tree.");
@@ -237,6 +253,8 @@ namespace AssimpLoaderExample
             {
                 Mesh mesh = scene.Meshes[mloop];
                 var m = new RiggedModel.RiggedModelMesh();
+                m.texture = DefaultTexture;
+                m.textureName = "";
                 //
                 // The material used by this mesh.
                 //A mesh uses only a single material. If an imported model uses multiple materials, the import splits up the mesh. Use this value as index into the scene's material list. 
@@ -469,66 +487,43 @@ namespace AssimpLoaderExample
                 // http://sir-kimmi.de/assimp/lib_html/structai_mesh.html#aa2807c7ba172115203ed16047ad65f9e
                 //
 
+                //// TODO need to add this to the vertex declaration or calculate it on the shader.
+
                 // tangents
                 for (int k = 0; k < mesh.Tangents.Count; k++)
                 {
                     var f = mesh.Tangents[k];
                     v[k].Tangent = new Vector3(f.X, f.Y, f.Z);
                 }
-
-                //// TODO need to add this to the vertex declaration or calculate it on the shader.
-                //// bi tangents  
-                //for (int k = 0; k < mesh.BiTangents.Count; k++)
-                //{
-                //    var f = mesh.BiTangents[k];
-                //    v[k].BiTangent = ConvertAssimpMg.Vector3ConvertAssimpToMg(f.X, f.Y, f.Z);
-                //}
+                // bi tangents  
+                for (int k = 0; k < mesh.BiTangents.Count; k++)
+                {
+                    var f = mesh.BiTangents[k];
+                    v[k].Tangent = f.ToMg();
+                }
 
                 // A mesh may contain 0 to AI_MAX_NUMBER_OF_COLOR_SETS vertex colors per vertex. NULL if not present. Each array is mNumVertices in size if present. 
                 // http://sir-kimmi.de/assimp/lib_html/structai_mesh.html#aa2807c7ba172115203ed16047ad65f9e
 
-                ////// TODO colors dunno why there are lists of lists for colors 
-                ////// maybe its multi colored or something ill have to read up on this before i load them.
-                //////  This will have to be made from scratch need v4 to mg and other stuff
-                //////
-                ////for (int k = 0; k < mesh.VertexColorChannels[0].Count; k++)
-                ////{
-                ////    var f = mesh.VertexColorChannels[k];
-                ////    v[k].Color = ConvertAssimpMg.Vector3ConvertAssimpToMg(f.X, f.Y, f.Z);
-                ////}
-                ///
-
-
-                // example from some dudes thing ok so i might have to actually get the texture id from within the uv ? does that make sense ? no !
-                //// Add textures
-                //if (assimpMesh.TextureCoordsChannelCount > 0)
-                //{
-                //    for (int localIndex = 0, i = 0; i < assimpMesh.TextureCoordsChannelCount; i++)
-                //    {
-                //        if (assimpMesh.HasTextureCoords(i))
-                //        {
-                //            var uvCount = assimpMesh.GetUVComponentCount(i);
-
-                //            if (uvCount == 2)
-                //            {
-                //                layout.Add(VertexElement.TextureCoordinate(localIndex, Format.R32G32_Float, vertexBufferElementSize));
-                //                vertexBufferElementSize += Utilities.SizeOf<SharpDX.Vector2>();
-                //            }
-                //            else if (uvCount == 3)
-                //            {
-                //                layout.Add(VertexElement.TextureCoordinate(localIndex, Format.R32G32B32_Float, vertexBufferElementSize));
-                //                vertexBufferElementSize += Utilities.SizeOf<SharpDX.Vector3>();
-                //            }
-                //            else
-                //            {
-                //                throw new InvalidOperationException("Unexpected uv count");
-                //            }
-
-                //            localIndex++;
-                //        }
-                //    }
-                //}
-
+                // TODO colors dunno why there are lists of lists for colors 
+                // maybe its multi colored or something ill have to read up on this ...  not sure this is the right way to do it ?
+                //  This will have to be made from scratch need v4 to mg and other stuff
+                //
+                if (mesh.HasVertexColors(0))
+                {
+                    for (int k = 0; k < mesh.VertexColorChannels[0].Count; k++)
+                    {
+                        var f = mesh.VertexColorChannels[k];
+                        var c = f[k];
+                        v[k].Color = new Vector4(c.R, c.G, c.B, c.A);
+                    }
+                }
+                else
+                {
+                    for (int k = 0; k < mesh.VertexColorChannels[0].Count; k++)
+                        v[k].Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+                }
+                
 
                 // Check whether the mesh contains a texture coordinate set. 
                 // mNumUVComponents
@@ -673,8 +668,24 @@ namespace AssimpLoaderExample
                         }
                     }
                 }
+
                 model.meshes[mloop].vertices = v;
                 model.meshes[mloop].indices = indexs;
+
+                // last thing reverse the winding if specified.
+                if (ReverseVerticeWinding)
+                {
+                    for (int k = 0; k < model.meshes[mloop].indices.Length; k+=3)
+                    {                       
+                        var i0 = model.meshes[mloop].indices[k+0];
+                        var i1 = model.meshes[mloop].indices[k+1];
+                        var i2 = model.meshes[mloop].indices[k+2];
+                        model.meshes[mloop].indices[k + 0] = i0;
+                        model.meshes[mloop].indices[k + 1] = i2;
+                        model.meshes[mloop].indices[k + 2] = i1;
+                    }
+                }
+
             }
             return model;
         }
@@ -1101,127 +1112,151 @@ namespace AssimpLoaderExample
         /*
        */
 
-        ////=============================================================================
-        ///// <summary> Can be removed later or disregarded this is mainly for debuging. </summary>
-        //public void GetMaterialsInfoForNow(AssimpBasedModel model, Scene scene)
-        //{
-        //    for (int mloop = 0; mloop < scene.Meshes.Count; mloop++)
-        //    {
-        //        Mesh mesh = scene.Meshes[mloop];
+        //=============================================================================
+        /// <summary> Can be removed later or disregarded this is mainly for debuging. </summary>
+        public void GetMaterialsInfoForNow(RiggedModel model, Scene scene)
+        {
+            for (int mloop = 0; mloop < scene.Meshes.Count; mloop++)
+            {
+                Mesh mesh = scene.Meshes[mloop];
 
-        //        if (startupconsoleinfo)
-        //        {
-        //            Console.WriteLine(
-        //            "\n" + "__________________________" +
-        //            "\n" + "Scene.Meshes[" + mloop + "] " +
-        //            "\n" + "Mesh.Name: " + mesh.Name +
-        //            "\n" + " FaceCount: " + mesh.FaceCount +
-        //            "\n" + " VertexCount: " + mesh.VertexCount +
-        //            "\n" + " Normals.Count: " + mesh.Normals.Count +
-        //            "\n" + " BoneCount: " + mesh.BoneCount +
-        //            "\n" + " MaterialIndex: " + mesh.MaterialIndex
-        //            );
-        //            Console.WriteLine("  mesh.UVComponentCount.Length: " + mesh.UVComponentCount.Length);
-        //        }
-        //        for (int i = 0; i < mesh.UVComponentCount.Length; i++)
-        //        {
-        //            int val = mesh.UVComponentCount[i];
-        //            if (startupconsoleinfo)
-        //                Console.WriteLine("     mesh.UVComponentCount[" + i + "] : int value: " + val);
-        //        }
-        //        var tcc = mesh.TextureCoordinateChannelCount;
-        //        var tc = mesh.TextureCoordinateChannels;
-        //        if (startupconsoleinfo)
-        //        {
-        //            Console.WriteLine("  mesh.TextureCoordinateChannelCount: " + mesh.TextureCoordinateChannelCount);
-        //            Console.WriteLine("  mesh.TextureCoordinateChannels.Length:" + mesh.TextureCoordinateChannels.Length);
-        //        }
-        //        for (int i = 0; i < mesh.TextureCoordinateChannels.Length; i++)
-        //        {
-        //            var channel = mesh.TextureCoordinateChannels[i];
-        //            if (startupconsoleinfo)
-        //                Console.WriteLine("     mesh.TextureCoordinateChannels[" + i + "]  count " + channel.Count);
-        //            for (int j = 0; j < channel.Count; j++)
-        //            {
-        //                // holds uvs and shit i think
-        //                //Console.Write(" channel[" + j + "].Count: " + channel.Count);
-        //            }
-        //        }
-        //        if (startupconsoleinfo)
-        //            Console.WriteLine();
-        //    }
+                if (startupconsoleinfo)
+                {
+                    Console.WriteLine(
+                    "\n" + "__________________________" +
+                    "\n" + "Scene.Meshes[" + mloop + "] " +
+                    "\n" + "Mesh.Name: " + mesh.Name +
+                    "\n" + " FaceCount: " + mesh.FaceCount +
+                    "\n" + " VertexCount: " + mesh.VertexCount +
+                    "\n" + " Normals.Count: " + mesh.Normals.Count +
+                    "\n" + " BoneCount: " + mesh.BoneCount +
+                    "\n" + " MaterialIndex: " + mesh.MaterialIndex
+                    );
+                    Console.WriteLine("  mesh.UVComponentCount.Length: " + mesh.UVComponentCount.Length);
+                }
+                for (int i = 0; i < mesh.UVComponentCount.Length; i++)
+                {
+                    int val = mesh.UVComponentCount[i];
+                    if (startupconsoleinfo)
+                        Console.WriteLine("     mesh.UVComponentCount[" + i + "] : int value: " + val);
+                }
+                var tcc = mesh.TextureCoordinateChannelCount;
+                var tc = mesh.TextureCoordinateChannels;
+                if (startupconsoleinfo)
+                {
+                    Console.WriteLine("  mesh.HasMeshAnimationAttachments: " + mesh.HasMeshAnimationAttachments);
+                    Console.WriteLine("  mesh.TextureCoordinateChannelCount: " + mesh.TextureCoordinateChannelCount);
+                    Console.WriteLine("  mesh.TextureCoordinateChannels.Length:" + mesh.TextureCoordinateChannels.Length);
+                }
+                for (int i = 0; i < mesh.TextureCoordinateChannels.Length; i++)
+                {
+                    var channel = mesh.TextureCoordinateChannels[i];
+                    if (startupconsoleinfo)
+                        Console.WriteLine("     mesh.TextureCoordinateChannels[" + i + "]  count " + channel.Count);
+                    for (int j = 0; j < channel.Count; j++)
+                    {
+                        // holds uvs and shit i think
+                        //Console.Write(" channel[" + j + "].Count: " + channel.Count);
+                    }
+                }         
+                if (startupconsoleinfo)
+                    Console.WriteLine();
 
-        //    //// Uv
-        //    //Console.WriteLine("");
-        //    //var uvchannels = mesh.TextureCoordinateChannels;
-        //    //for (int k = 0; k < uvchannels.Length; k++)
-        //    //{
-        //    //    var f = uvchannels[k];
-        //    //    int loopIndex = 0;
-        //    //    for (int j = 0; j < f.Count; j++)
-        //    //    {
-        //    //        var uv = f[j];
-        //    //        v[loopIndex].TextureCoordinate = new Microsoft.Xna.Framework.Vector2(uv.X, uv.Y);
-        //    //        loopIndex++;
-        //    //    }
-        //    //}
+                //// Uv
+                //Console.WriteLine("");
+                //var uvchannels = mesh.TextureCoordinateChannels;
+                //for (int k = 0; k < uvchannels.Length; k++)
+                //{
+                //    var f = uvchannels[k];
+                //    int loopIndex = 0;
+                //    for (int j = 0; j < f.Count; j++)
+                //    {
+                //        var uv = f[j];
+                //        v[loopIndex].TextureCoordinate = new Microsoft.Xna.Framework.Vector2(uv.X, uv.Y);
+                //        loopIndex++;
+                //    }
+                //}
+            }
 
-        //    if (scene.HasTextures)
-        //    {
-        //        var texturescount = scene.TextureCount;
-        //        var textures = scene.Textures;
-        //        if (startupconsoleinfo)
-        //            Console.WriteLine("\nTextures " + " Count " + texturescount + "\n");
-        //        for (int i = 0; i < textures.Count; i++)
-        //        {
-        //            var name = textures[i];
-        //            if (startupconsoleinfo)
-        //                Console.WriteLine("Textures[" + i + "] " + name);
-        //        }
-        //    }
-        //    else
-        //    {
-        //        if (startupconsoleinfo)
-        //            Console.WriteLine("\nTextures " + " None ");
-        //    }
 
-        //    if (startupconsoleinfo)
-        //        Console.WriteLine("\nMaterials scene.MaterialCount " + scene.MaterialCount + "\n");
-        //    for (int i = 0; i < scene.Materials.Count; i++)
-        //    {
-        //        if (startupconsoleinfo)
-        //        {
-        //            Console.WriteLine();
-        //            Console.WriteLine("Material[" + i + "] ");
-        //        }
-        //        var m = scene.Materials[i];
-        //        if (m.HasName)
-        //        {
-        //            if (startupconsoleinfo)
-        //                Console.Write(" Name: " + m.Name);
-        //        }
-        //        var t = m.GetAllMaterialTextures();
-        //        if (startupconsoleinfo)
-        //        {
-        //            Console.WriteLine("  GetAllMaterialTextures Length " + t.Length);
-        //            Console.WriteLine();
-        //        }
-        //        for (int j = 0; j < t.Length; j++)
-        //        {
-        //            var tindex = t[j].TextureIndex;
-        //            var toperation = t[j].Operation;
-        //            var ttype = t[j].TextureType.ToString();
-        //            var tfilepath = t[j].FilePath;
-        //            // j matches up to the texture coordinate channel uv count it looks like 
-        //            if (startupconsoleinfo)
-        //                Console.WriteLine("   Texture[" + j + "] " + "   Index:" + tindex + "   Type: " + ttype + "   Filepath: " + tfilepath);
-        //        }
-        //        if (startupconsoleinfo)
-        //            Console.WriteLine();
-        //    }
-        //    if (startupconsoleinfo)
-        //        Console.WriteLine();
-        //}
+            if (scene.HasTextures)
+            {
+                var texturescount = scene.TextureCount;
+                var textures = scene.Textures;
+                if (startupconsoleinfo)
+                    Console.WriteLine("\nTextures " + " Count " + texturescount + "\n");
+                for (int i = 0; i < textures.Count; i++)
+                {
+                    var name = textures[i];
+                    if (startupconsoleinfo)
+                        Console.WriteLine("Textures[" + i + "] " + name);
+                }
+            }
+            else
+            {
+                if (startupconsoleinfo)
+                    Console.WriteLine("\nTextures " + " None ");
+            }
+
+            if (scene.HasMaterials)
+            {
+                if (startupconsoleinfo)
+                    Console.WriteLine("\nMaterials scene.MaterialCount " + scene.MaterialCount + "\n");
+                for (int i = 0; i < scene.Materials.Count; i++)
+                {
+                    if (startupconsoleinfo)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine("Material[" + i + "] ");
+                        Console.WriteLine("Material[" + i + "].Name " + scene.Materials[i].Name);
+                    }
+                    var m = scene.Materials[i];
+                    if (m.HasName)
+                    {
+                        if (startupconsoleinfo)
+                            Console.Write(" Name: " + m.Name);
+                    }
+                    var t = m.GetAllMaterialTextures();
+                    if (startupconsoleinfo)
+                    {
+                        Console.WriteLine("  GetAllMaterialTextures Length " + t.Length);
+                        Console.WriteLine();
+                    }
+                    for (int j = 0; j < t.Length; j++)
+                    {
+                        var tindex = t[j].TextureIndex;
+                        var toperation = t[j].Operation;
+                        var ttype = t[j].TextureType.ToString();
+                        var tfilepath = t[j].FilePath;
+                        // J matches up to the texture coordinate channel uv count it looks like.
+                        if (startupconsoleinfo)
+                        {
+                            Console.WriteLine("   Texture[" + j + "] " + "   Index:" + tindex + "   Type: " + ttype + "   Filepath: " + tfilepath);
+                        }
+                    }
+                    if (startupconsoleinfo)
+                        Console.WriteLine();
+
+                    // added info
+                    if (startupconsoleinfo)
+                    {
+                        Console.WriteLine("   Material[" + i + "] " + "  HasBlendMode:" + m.HasBlendMode + "  HasBumpScaling: " + m.HasBumpScaling + "  HasOpacity: " + m.HasOpacity + "  HasShadingMode: " + m.HasShadingMode + "  HasTwoSided: " + m.HasTwoSided + "  IsTwoSided: " + m.IsTwoSided);
+                        Console.WriteLine("   Material[" + i + "] " + "  HasBlendMode:" + m.HasShininess + "  HasTextureDisplacement:" + m.HasTextureDisplacement + "  HasTextureEmissive:" + m.HasTextureEmissive + "  HasTextureReflection:" + m.HasTextureReflection);
+                        Console.WriteLine("   Material[" + i + "] " + "  HasTextureReflection " + scene.Materials[i].HasTextureReflection + "  HasTextureLightMap " + scene.Materials[i].HasTextureLightMap + "  Reflectivity " + scene.Materials[i].Reflectivity);
+                        Console.WriteLine("   Material[" + i + "] " + "  ColorAmbient:" + m.ColorAmbient + "  ColorDiffuse: " + m.ColorDiffuse + "  ColorSpecular: " + m.ColorSpecular);
+                        Console.WriteLine("   Material[" + i + "] " + "  ColorReflective:" + m.ColorReflective + "  ColorEmissive: " + m.ColorEmissive + "  ColorTransparent: " + m.ColorTransparent);
+                    }
+                }
+                if (startupconsoleinfo)
+                    Console.WriteLine();
+            }
+            else
+            {
+                if (startupconsoleinfo)
+                    Console.WriteLine("\n   No Materials Present. \n");
+            }
+        }
+
     }
 
     public class TempWeightVert
@@ -1286,6 +1321,15 @@ namespace AssimpLoaderExample
             return m;
         }
 
+        public static Color ToColor(this Vector4 v)
+        {
+            return new Color(v.X, v.Y, v.Z, v.W);
+        }
+        public static Vector4 ToVector4(this Color v)
+        {
+            return new Vector4(1f/v.R, 1f/v.G, 1f/v.B, 1f/v.A);
+        }
+
         public static Vector3 ToMg(this Assimp.Vector3D v)
         {
             return new Vector3(v.X, v.Y, v.Z);
@@ -1297,14 +1341,12 @@ namespace AssimpLoaderExample
             int pamt = 8;
             return (v.X.ToString(d).PadRight(pamt) + ", " + v.Y.ToString(d).PadRight(pamt) + ", " + v.Z.ToString(d).PadRight(pamt));
         }
-
         public static string ToStringTrimed(this Assimp.Quaternion q)
         {
             string d = "+0.00#;-0.00#"; // "0.00";
             int pamt = 8;
             return ("x: " + q.X.ToString(d).PadRight(pamt) + "y: " + q.Y.ToString(d).PadRight(pamt) + "z: " + q.Z.ToString(d).PadRight(pamt) + "w: " + q.W.ToString(d).PadRight(pamt));
         }
-
         public static string ToStringTrimed(this int v)
         {
             string d = "+0.00#;-0.00#"; // "0.00";
