@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -214,6 +214,17 @@ namespace AssimpLoaderExample
 
         #region Region animation stuff
 
+        public int CurrentRunAnimation
+        {
+            get { return currentAnimation; }
+            set {
+                var n = value;
+                if (n >= origAnim.Count)
+                    n = origAnim.Count - 1;
+                currentAnimation = n;
+            }
+        }
+
         /// <summary>
         /// This takes the original assimp animations and calculates a complete steady orientation matrix per frame for the fps of the animation duration.
         /// </summary>
@@ -340,7 +351,7 @@ namespace AssimpLoaderExample
         /// </summary>
         public class RiggedAnimation
         {
-            public string targetNodeConsoleName = ""; //"L_Hand";
+            public string targetNodeConsoleName = "_none_"; //"L_Hand";
 
             public string animationName = "";
             public double DurationInTicks = 0;
@@ -395,6 +406,9 @@ namespace AssimpLoaderExample
             /// </summary>
             public Matrix Interpolate(double animTime, RiggedAnimationNodes n)
             {
+                while (animTime > DurationInSeconds)
+                    animTime -= DurationInSeconds;
+
                 var nodeAnim = n;
                 // 
                 Quaternion q2 = nodeAnim.qrot[0];
@@ -544,18 +558,22 @@ namespace AssimpLoaderExample
     public struct VertexPositionTextureNormalTangentWeights : IVertexType
     {
         public Vector3 Position;
+        public Vector4 Color;
         public Vector3 Normal;
         public Vector2 TextureCoordinate;
         public Vector3 Tangent;
+        public Vector3 BiTangent;
         public Vector4 BlendIndices;
         public Vector4 BlendWeights;
 
         public static VertexDeclaration VertexDeclaration = new VertexDeclaration
         (
               new VertexElement(VertexElementByteOffset.PositionStartOffset(), VertexElementFormat.Vector3, VertexElementUsage.Position, 0),
+              new VertexElement(VertexElementByteOffset.OffsetVector4(), VertexElementFormat.Vector4, VertexElementUsage.Color, 0),
               new VertexElement(VertexElementByteOffset.OffsetVector3(), VertexElementFormat.Vector3, VertexElementUsage.Normal, 0),
               new VertexElement(VertexElementByteOffset.OffsetVector2(), VertexElementFormat.Vector2, VertexElementUsage.TextureCoordinate, 0),
               new VertexElement(VertexElementByteOffset.OffsetVector3(), VertexElementFormat.Vector3, VertexElementUsage.Normal, 1),
+              new VertexElement(VertexElementByteOffset.OffsetVector3(), VertexElementFormat.Vector3, VertexElementUsage.Normal, 2),
               new VertexElement(VertexElementByteOffset.OffsetVector4(), VertexElementFormat.Vector4, VertexElementUsage.BlendIndices, 0),
               new VertexElement(VertexElementByteOffset.OffsetVector4(), VertexElementFormat.Vector4, VertexElementUsage.BlendWeight, 0)
         );
