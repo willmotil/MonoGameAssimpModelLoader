@@ -13,6 +13,18 @@
 
 #---------------------------------- Content ---------------------------------#
 
+#begin CheckerBoardTemplateImage.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:CheckerBoardTemplateImage.png
+
 #begin head.png
 /importer:TextureImporter
 /processor:TextureProcessor
@@ -44,6 +56,18 @@
 /processorParam:TextureFormat=Compressed
 /build:MgGenFont.spritefont
 
+#begin OrientationImage_PartiallyTransparent.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:OrientationImage_PartiallyTransparent.png
+
 #begin pants.png
 /importer:TextureImporter
 /processor:TextureProcessor
@@ -62,12 +86,6 @@
 /processorParam:DebugMode=Auto
 /build:RiggedModelEffect.fx
 
-#begin TriangleDraw.fx
-/importer:EffectImporter
-/processor:EffectProcessor
-/processorParam:DebugMode=Auto
-/build:TriangleDraw.fx
-
 #begin upBodyC.png
 /importer:TextureImporter
 /processor:TextureProcessor
@@ -79,4 +97,17 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /build:upBodyC.png
+
+#begin victoria.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:victoria.png
+
 
