@@ -11,3 +11,7 @@ F6 to view the Normals.
 R begins the animation F stops it.
 Q thru C and the Arrow keys all have different functions for moving the camera around.
 qe forward back the arrows are strafing movement zc roll and aswd are look at keys.
+
+.
+
+ <img src="https://raw.githubusercontent.com/willmotil/MonoGameAssimpModelLoader/master/Dude.png"  height="600" width="400"> 
