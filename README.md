@@ -15,6 +15,8 @@ Future plans later down the road is to add a few things to edit the models if po
 
 * Subdivision tesselator to lower or increase the lod of a model.
 
+* Id like to also find a way to import bvh data for animations probably beyond me atm.
+
 * In some manner ill probably add a way to turn the model into a simpler data structure a xnb or dat file.
 
   So that this whole thing may just become a intermediate converter in the end.
