@@ -6,8 +6,8 @@ It is currently in what id call a prototyping phase.
 Tons of stuff needs to still be done.
 At the moment its pretty raw and somewhat a mess.
 
-Current keyboard commands 
-.
+Current keyboard commands. 
+
 F5 for wireframe.
 F6 to view the Normals.
 R begins the animation. F stops it. N next animation. O view node local transforms.
