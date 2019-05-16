@@ -248,7 +248,7 @@ namespace AssimpLoaderExample
             for (int i = 0; i < meshes.Length; i++)
             {
                 // This feels errr is hacky.
-                meshes[i].nodeRefContainingAnimatedTransform.CombinedTransformMg = meshes[i].nodeRefContainingAnimatedTransform.LocalTransformMg * meshes[i].nodeRefContainingAnimatedTransform.InvOffsetMatrixMg;
+                //meshes[i].nodeRefContainingAnimatedTransform.CombinedTransformMg = meshes[i].nodeRefContainingAnimatedTransform.LocalTransformMg * meshes[i].nodeRefContainingAnimatedTransform.InvOffsetMatrixMg;
                 if (originalAnimations[CurrentPlayingAnimationIndex].animatedNodes.Count > 1)
                 {
                     meshes[i].nodeRefContainingAnimatedTransform.CombinedTransformMg = Matrix.Identity;
