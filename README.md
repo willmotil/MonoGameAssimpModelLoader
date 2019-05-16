@@ -8,11 +8,17 @@ At the moment its pretty raw and somewhat a mess.
 
 Current keyboard commands 
 .
-F5 for wireframe 
+F5 for wireframe.
+
 F6 to view the Normals.
-R begins the animation F stops it.
+
+R begins the animation. F stops it. N next animation. O view node local transforms.
+
 Q thru C and the Arrow keys all have different functions for moving the camera around.
+
 qe forward back the arrows are strafing movement zc roll and aswd are look at keys.
+
+number pad keys quick change view.
 .
 
 Future plans later down the road is to add a few things to edit the models if possible.
