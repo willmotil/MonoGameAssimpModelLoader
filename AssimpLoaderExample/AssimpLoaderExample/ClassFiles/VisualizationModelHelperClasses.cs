@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,6 +13,61 @@ namespace AssimpLoaderExample
     {
     }
 
+    public static class Extensions
+    {
+        // exensions
+
+        public static Color ToColor(this Vector4 v)
+        {
+            return new Color(v.X, v.Y, v.Z, v.W);
+        }
+        public static Vector4 ToVector4(this Color v)
+        {
+            return new Vector4(1f / v.R, 1f / v.G, 1f / v.B, 1f / v.A);
+        }
+        
+        public static string ToStringTrimed(this int v)
+        {
+            string d = "+0.000;-0.000"; // "0.00";
+            int pamt = 8;
+            return (v.ToString(d).PadRight(pamt));
+        }
+        public static string ToStringTrimed(this float v)
+        {
+            string d = "+0.000;-0.000"; // "0.00";
+            int pamt = 8;
+            return (v.ToString(d).PadRight(pamt));
+        }
+        public static string ToStringTrimed(this double v)
+        {
+            string d = "+0.000;-0.000"; // "0.00";
+            int pamt = 8;
+            return (v.ToString(d).PadRight(pamt));
+        }
+        public static string ToStringTrimed(this Vector3 v)
+        {
+            string d = "+0.000;-0.000"; // "0.00";
+            int pamt = 8;
+            return (v.X.ToString(d).PadRight(pamt) + ", " + v.Y.ToString(d).PadRight(pamt) + ", " + v.Z.ToString(d).PadRight(pamt));
+        }
+        public static string ToStringTrimed(this Vector4 v)
+        {
+            string d = "+0.000;-0.000"; // "0.00";
+            int pamt = 8;
+            return (v.X.ToString(d).PadRight(pamt) + ", " + v.Y.ToString(d).PadRight(pamt) + ", " + v.Z.ToString(d).PadRight(pamt) + ", " + v.W.ToString(d).PadRight(pamt));
+        }
+        public static string ToStringTrimed(this Microsoft.Xna.Framework.Quaternion q)
+        {
+            string d = "+0.000;-0.000"; // "0.00";
+            int pamt = 8;
+            return ("x: " + q.X.ToString(d).PadRight(pamt) + "y: " + q.Y.ToString(d).PadRight(pamt) + "z: " + q.Z.ToString(d).PadRight(pamt) + "w: " + q.W.ToString(d).PadRight(pamt));
+        }
+
+        public static Matrix Invert(this Matrix m)
+        {
+            return Matrix.Invert(m);
+        }
+    }
 
     /// <summary>
     /// This is a camera i basically remade to make it work. 
@@ -73,11 +128,15 @@ namespace AssimpLoaderExample
         public const int CAM_TYPE_OPTION_FREE = 1;
 
 
+        public bool UseOthorgraphic = false;
+
+
         /// <summary>
         /// Constructs the camera.
         /// </summary>
-        public Basic3dExampleCamera(GraphicsDevice gfxDevice, GameWindow window)
+        public Basic3dExampleCamera(GraphicsDevice gfxDevice, GameWindow window, bool useOthographic)
         {
+            UseOthorgraphic = useOthographic;
             graphicsDevice = gfxDevice;
             gameWindow = window;
             ReCreateWorldAndView();
@@ -180,12 +239,15 @@ namespace AssimpLoaderExample
                 // since we know here that a change has occured to the cameras world orientations we can update the view matrix.
                 ReCreateWorldAndView();
             }
-            get { return camerasWorld.Forward; }
+            get
+            {
+                return camerasWorld.Forward;
+            }
         }
         /// <summary>
         /// Sets a positional target in the world to look at.
         /// </summary>
-        public Vector3 TargetPositionToLookAt
+        public Vector3 LookAtTargetPosition
         {
             set
             {
@@ -257,6 +319,9 @@ namespace AssimpLoaderExample
             if (cameraTypeOption == 1)
                 up = camerasWorld.Up;
 
+            if (camerasWorld.Forward.X == float.NaN)
+                camerasWorld.Forward = new Vector3(.01f, .1f, 1f);
+
             camerasWorld = Matrix.CreateWorld(camerasWorld.Translation, camerasWorld.Forward, up);
             viewMatrix = Matrix.CreateLookAt(camerasWorld.Translation, camerasWorld.Forward + camerasWorld.Translation, camerasWorld.Up);
         }
@@ -266,20 +331,29 @@ namespace AssimpLoaderExample
         /// </summary>
         public void ReCreateThePerspectiveProjectionMatrix(GraphicsDevice gd, float fovInDegrees)
         {
-            projectionMatrix = Matrix.CreatePerspectiveFieldOfView(fovInDegrees * (float)((3.14159265358f) / 180f), gd.Viewport.Width / gd.Viewport.Height, NearClipPlane, FarClipPlane);
+            if (UseOthorgraphic)
+                projectionMatrix = Matrix.CreateScale(1, -1, 1) * Matrix.CreateOrthographicOffCenter(0, gd.Viewport.Width, gd.Viewport.Height, 0, 0, FarClipPlane);
+            else
+                projectionMatrix = Matrix.CreatePerspectiveFieldOfView(fovInDegrees * (float)((3.14159265358f) / 180f), gd.Viewport.Width / gd.Viewport.Height, NearClipPlane, FarClipPlane);
         }
         /// <summary>
         /// Changes the perspective matrix to a new near far and field of view.
         /// The projection matrix is typically only set up once at the start of the app.
         /// </summary>
-        public void ReCreateThePerspectiveProjectionMatrix(float fieldOfViewInDegrees, float nearPlane, float farPlane)
+        public void ReCreateThePerspectiveProjectionMatrix(GraphicsDevice gd, float fieldOfViewInDegrees, float nearPlane, float farPlane)
         {
-            // create the projection matrix.
             this.FieldOfViewDegrees = MathHelper.ToRadians(fieldOfViewInDegrees);
             NearClipPlane = nearPlane;
             FarClipPlane = farPlane;
             float aspectRatio = graphicsDevice.Viewport.Width / (float)graphicsDevice.Viewport.Height;
-            projectionMatrix = Matrix.CreatePerspectiveFieldOfView(this.FieldOfViewDegrees, aspectRatio, NearClipPlane, FarClipPlane);
+
+            // create the projection matrix.          
+            if (UseOthorgraphic)
+                projectionMatrix = Matrix.CreateScale(1, -1, 1) * Matrix.CreateOrthographicOffCenter(0, gd.Viewport.Width, gd.Viewport.Height, 0, 0, FarClipPlane);
+            else
+            {
+                projectionMatrix = Matrix.CreatePerspectiveFieldOfView(this.FieldOfViewDegrees, aspectRatio, NearClipPlane, FarClipPlane);
+            }
         }
 
         /// <summary>
@@ -604,7 +678,7 @@ namespace AssimpLoaderExample
 
     public class ModelsVisualNormals
     {
-        Texture2D texture;
+        //Texture2D texture;
         RiggedAlignedNormalArrows[] modelNormalArrows;
 
         public ModelsVisualNormals(RiggedModel model, Texture2D t, float thickness, float scale)
@@ -612,15 +686,18 @@ namespace AssimpLoaderExample
             modelNormalArrows = new RiggedAlignedNormalArrows[model.meshes.Length];
             for (int i = 0; i < model.meshes.Length; i++)
             {
+                Console.WriteLine("model.meshes["+i+ "]  create normals   vertices.Length: " + model.meshes[i].vertices.Length);
                 modelNormalArrows[i] = new RiggedAlignedNormalArrows();
                 modelNormalArrows[i].texture = t;
-                modelNormalArrows[i].CreateVisualNormalsForPrimitiveMesh(model.meshes[i].vertices, model.meshes[i].indices, t, 1f, 1f);
+                modelNormalArrows[i].CreateVisualNormalsForPrimitiveMesh(model.meshes[i].vertices, model.meshes[i].indices, t, thickness, scale);
+                Console.WriteLine(" verifyed ... modelNormalArrows.Length: "+ modelNormalArrows.Length + "   model.meshes[" + i + "]  created normals   vertices.Length: " + model.meshes[i].vertices.Length);
+                Console.WriteLine("");
             }
         }
 
         public void Draw(GraphicsDevice device, Effect effect)
         {
-            effect.CurrentTechnique = effect.Techniques["RiggedModelNormalDraw"];
+            //effect.CurrentTechnique = effect.Techniques["RiggedModelNormalDraw"];
             for (int i = 0; i < modelNormalArrows.Length; i++)
             {
                 modelNormalArrows[i].Draw(device, effect);
@@ -634,7 +711,6 @@ namespace AssimpLoaderExample
         int[] indices;
 
         public Texture2D texture;
-        RiggedAlignedNormalArrows[] modelNormalArrows;
 
         public RiggedAlignedNormalArrows()
         {
@@ -645,6 +721,7 @@ namespace AssimpLoaderExample
             texture = t;
             int len = inVertices.Length;
 
+            // for each vertice in the model we will make a quad composed of 4 vertices and 6 indices.
             VertexPositionTextureNormalTangentWeights[] nverts = new VertexPositionTextureNormalTangentWeights[len * 4];
             int[] nindices = new int[len * 6];
 
@@ -654,20 +731,16 @@ namespace AssimpLoaderExample
                 int i = j * 6;
                 //
                 //ReCreateForwardNormalQuad(vertices[i].Position, vertices[i].Normal);
-                //nverts[v + 0].Color = inVertices[j].Color;
-                //nverts[v + 1].Color = inVertices[j].Color;
-                //nverts[v + 2].Color = inVertices[j].Color;
-                //nverts[v + 3].Color = inVertices[j].Color;
-                //
-                nverts[v + 0].TextureCoordinate = new Vector2(0f, 0f);//vertices[v + 0].TextureCoordinateA;
-                nverts[v + 1].TextureCoordinate = new Vector2(0f, .33f); //vertices[v + 1].TextureCoordinateA;
-                nverts[v + 2].TextureCoordinate = new Vector2(1f, .0f);//vertices[v + 2].TextureCoordinateA;
-                nverts[v + 3].TextureCoordinate = new Vector2(1f, .33f);//vertices[v + 3].TextureCoordinateA;
                 //
                 nverts[v + 0].Position = new Vector3(0f, 0f, 0f) + inVertices[j].Position;
                 nverts[v + 1].Position = new Vector3(0f, -.2f * thickness, 0f) + inVertices[j].Position;
                 nverts[v + 2].Position = new Vector3(0f, 0f, 0f) + inVertices[j].Position + inVertices[j].Normal * scale;
                 nverts[v + 3].Position = new Vector3(0f, -.2f * thickness, 0f) + inVertices[j].Position + inVertices[j].Normal * scale;
+                //
+                nverts[v + 0].TextureCoordinate = new Vector2(0f, 0f);//vertices[v + 0].TextureCoordinateA;
+                nverts[v + 1].TextureCoordinate = new Vector2(0f, .33f); //vertices[v + 1].TextureCoordinateA;
+                nverts[v + 2].TextureCoordinate = new Vector2(1f, .0f);//vertices[v + 2].TextureCoordinateA;
+                nverts[v + 3].TextureCoordinate = new Vector2(1f, .33f);//vertices[v + 3].TextureCoordinateA;
                 //
                 nverts[v + 0].Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f);
                 nverts[v + 1].Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f);
