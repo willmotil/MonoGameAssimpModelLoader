@@ -15,9 +15,8 @@ using Assimp;                               // note: install AssimpNET 4.1 via n
 
 // TODO's  see the model class for more.  
 //
-// ARRRRGGG Ok much bigger problem the winding on the vertices are ccw and in many cases ill need cw wound vertices.
-// Because i don't know exactly were the normals are being ignored but somewere down the line between monogame to dx gl
-// The normals are calculated by the vertice winding and the actual normal data is ignored for the lighting.
+// Ok so it turns out that the animated bone transforms are doing some sort of reflection of the model which has a strange effect on the light calculations.
+// just have to be aware of it.
 //
 //
 // organize the reading order so it looks a little more readable and clear.
@@ -60,9 +59,26 @@ namespace AssimpLoaderExample
         /// </summary>
         public bool ReverseVerticeWinding = false;
 
-        public bool startupconsoleinfo = true;
-        public bool startupAnimationConsoleInfo = true;
-        public string targetNodeConsoleName = "L_Hand";
+        /// <summary>
+        /// Adds a small amount of additional looping time at the end of the time duration.
+        /// This can help fix animations that are not properly or smoothly looped. 
+        /// used in concert with AddedLoopingDuration
+        /// </summary>
+        public bool AddAdditionalLoopingTime = true;
+        /// <summary>
+        /// Artificially adds a small amount of looping duration to the end of a animation. This helps to fix animations that aren't properly looped.
+        /// Turn on AddAdditionalLoopingTime to use this.
+        /// </summary>
+        public float AddedLoopingDuration = .5f;
+
+        public bool startupConsoleinfo = true;
+        public bool startupMinimalConsoleinfo = true;
+        public bool startUpMatrixInfo = true;
+        public bool startupAnimationConsoleInfo = false;
+        public bool startupMaterialConsoleInfo = true;
+        public bool startupFlatBoneConsoleInfo = true;
+        public bool startupNodeTreeConsoleInfo = true;
+        public string targetNodeConsoleName = ""; //"L_Hand";
 
 
 
@@ -115,10 +131,13 @@ namespace AssimpLoaderExample
             //
             // load the file at path to the scene
             //
+            var importer = new AssimpContext();
             try
             {
-                var importer = new AssimpContext();
-                
+                //Console.WriteLine("(not sure this works) Model scale: " + importer.Scale);
+                //importer.Scale = 1f / importer.Scale;
+                //Console.WriteLine("(not sure this works) Model scale: " + importer.Scale);
+
                 scene = importer.ImportFile
                                        (
                                         filepathorname,
@@ -131,7 +150,8 @@ namespace AssimpLoaderExample
                                         | PostProcessSteps.SortByPrimitiveType
                                         | PostProcessSteps.OptimizeMeshes
                                         | PostProcessSteps.OptimizeGraph // normal
-                                        //| PostProcessSteps.FixInFacingNormals
+                                        //| PostProcessSteps.FlipWindingOrder
+                                        | PostProcessSteps.FixInFacingNormals
                                         | PostProcessSteps.ValidateDataStructure
                                         //| PostProcessSteps.GlobalScale
                                         //| PostProcessSteps.RemoveRedundantMaterials // sketchy
@@ -143,20 +163,10 @@ namespace AssimpLoaderExample
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
-                Debug.Assert(false, filePathorFileName + "\n\n"+ "A problem loading the model occured: \n\n" + e.Message);
+                Debug.Assert(false, filePathorFileName + "\n\n"+ "A problem loading the model occured: \n " + filePathorFileName + " \n" + e.Message);
                 scene = null;
             }
 
-            // check scene is not null and truely loaded
-            if (scene == null)
-            {
-                Console.WriteLine($"AssimpFileModelReader Couldn't load {filePathorFileName}");
-                return null;
-            }
-            else
-            {
-                Console.WriteLine("AssimpFileModelReader Loaded file: \n" + filepathorname);
-            }
             return CreateModel(filepathorname);
         }
 
@@ -171,76 +181,78 @@ namespace AssimpLoaderExample
             if(effectToUse != null)
                 model.effect = effectToUse;
 
+            // prep to build a models tree.
+            Console.WriteLine("\n@@@CreateRootNode   prep to build a models tree. Set Up the Models RootNode");
+            CreateRootNode(model, scene);
+
             // create the models meshes
-            Console.WriteLine("\n@@@CreateModelMeshesSetMeshMaterialIndex");
+            Console.WriteLine("\n@@@CreateModelMeshesSetUpMeshMaterialsAndTextures");
             CreateModelMeshesSetUpMeshMaterialsAndTextures(model, scene, 0);
 
-            // adds (mesh transform) to the model meshes arrays typically array index 0 holds the primary mesh transform
-            Console.WriteLine("\n@@@SetNodeToMeshTransformsRecursive");
-            SetModelMeshTransformsRecursively(model, scene.RootNode, 0, 0);
-
-            //// take a look at material information.
-            Console.WriteLine("\n@@@GetMaterialsInfoForNow");
-            GetMaterialsInfoForNow(model, scene);
-
-            // prep to build a models tree.
-            Console.WriteLine("\n@@@prep to build a models tree.");
-            model.rootNodeOfTree = new RiggedModel.RiggedModelNode();
-            
-            // set the rootnode and its transform
-            model.rootNodeOfTree.name = scene.RootNode.Name;
-            // set the rootnode transform
-            model.rootNodeOfTree.LocalTransformMg = scene.RootNode.Transform.ToMgTransposed();
-
             // set up a dummy bone.
-            Console.WriteLine("\n@@@CreateDummyStarterNodeZeroInFlatList");
+            Console.WriteLine("\n@@@CreateDummyFlatListNodeZero");
             CreateDummyFlatListNodeZero(model);
 
             // recursively search and add the nodes to our model from the scene.
-            Console.WriteLine("\n@@@BuildModelNodeTreeRecursive");
+            Console.WriteLine("\n@@@CreateModelNodeTreeTransformsRecursively");
             CreateModelNodeTreeTransformsRecursively(model, model.rootNodeOfTree, scene.RootNode, 0);
-
+          
             // find the actual and real first bone with a offset.
-            Console.WriteLine("\n@@@FindSetActualBoneInModel");
-            FindSetActualBoneInModel(model, scene.RootNode);
+            Console.WriteLine("\n@@@FindFirstBoneInModel");
+            FindFirstBoneInModel(model, scene.RootNode);
 
             // get the animations in the file into each nodes animations framelist
-            Console.WriteLine("\n@@@GetAnimationsAsOriginalFromAssimp\n");
-            model = GetOriginalAnimations(model, scene);
+            Console.WriteLine("\n@@@CreateOriginalAnimations\n");
+            CreateOriginalAnimations(model, scene); 
 
             // this is the last thing we will do because we need the nodes set up first.
 
             // get the vertice data from the meshes.
-            Console.WriteLine("\n@@@GetVerticeIndiceData");
-            model = GetVerticeIndiceData(model, scene, 0);
+            Console.WriteLine("\n@@@CreateVerticeIndiceData");
+            CreateVerticeIndiceData(model, scene, 0);
 
             // this calls the models function to create the interpolated animtion frames.
             // for a full set of callable time stamped orientations per frame so indexing and dirty flags can be used when running.
-            Console.WriteLine("\n@@@CreateAnimationFrames");
-            model.CreateAnimationFrames(defaultAnimatedFramesPerSecondLod);
+            // im going to make this optional to were you don't have to use it there is a trade off either way you have to do look ups.
+            // this way is a lot more memory but saves speed. 
+            // the other way is a lot less memory but requires a lot more cpu calculations and twice as many look ups.
+            //
+            Console.WriteLine("\n@@@model.CreateStaticAnimationLookUpFrames");
+            model.CreateStaticAnimationLookUpFrames(defaultAnimatedFramesPerSecondLod, AddAdditionalLoopingTime);
+
+            Console.WriteLine("\n@@@InfoFlatBones");
+            InfoFlatBones(model);
+
+            //// take a look at material information.
+            if (startupMaterialConsoleInfo)
+            {
+                Console.WriteLine("\n@@@InfoForMaterials");
+                InfoForMaterials(model, scene);
+            }
 
             // if we want to see the original animation data all this console crap is for debuging.
             if (startupAnimationConsoleInfo)
             {
-                Console.WriteLine("\n@@@PrintAnimData");
-                PrintAnimData(scene);
+                Console.WriteLine("\n@@@InfoForAnimData");
+                InfoForAnimData(scene);
             }
 
-            Console.WriteLine("\n");
-            Console.WriteLine("\n");
-            Console.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            Console.WriteLine();
-            Console.WriteLine("Model Loaded");
-            Console.WriteLine();
-            Console.WriteLine(filePath);
-            Console.WriteLine();
-            Console.WriteLine("Model number of bones: " + model.numberOfBonesInUse);
-            Console.WriteLine("Model number of animaton: " + model.origAnim.Count);
-            Console.WriteLine("BoneRoot's Node Name: " + model.rootNodeOfTree.name);
-            Console.WriteLine();
-            Console.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            if (startupMinimalConsoleinfo)
+            {
+                MinimalInfo(model, filePath);
+            }
 
             return model;
+        }
+
+        public void CreateRootNode(RiggedModel model, Scene scene)
+        {
+            model.rootNodeOfTree = new RiggedModel.RiggedModelNode();
+            // set the rootnode and its transform
+            model.rootNodeOfTree.name = scene.RootNode.Name;
+            // set the rootnode transforms
+            model.rootNodeOfTree.LocalTransformMg = scene.RootNode.Transform.ToMgTransposed();
+            model.rootNodeOfTree.CombinedTransformMg = model.rootNodeOfTree.LocalTransformMg;
         }
 
         /// <summary>We create model mesh instances for each mesh in scene.meshes. This is just set up it doesn't load any data.
@@ -253,6 +265,7 @@ namespace AssimpLoaderExample
             {
                 Mesh mesh = scene.Meshes[mloop];
                 var m = new RiggedModel.RiggedModelMesh();
+                m.nameOfMesh = mesh.Name;
                 m.texture = DefaultTexture;
                 m.textureName = "";
                 //
@@ -261,8 +274,8 @@ namespace AssimpLoaderExample
                 // http://sir-kimmi.de/assimp/lib_html/structai_mesh.html#aa2807c7ba172115203ed16047ad65f9e
                 //
                 m.MaterialIndex = mesh.MaterialIndex;
-                if(startupconsoleinfo)
-                    Console.WriteLine("scene.Meshes[" + mloop + "] " + "  (material associated to this mesh) Material index: "+ m.MaterialIndex + "  Name " + mesh.Name);
+                if(startupMaterialConsoleInfo)
+                    Console.WriteLine("scene.Meshes[" + mloop + "] " + " Material index: "+ m.MaterialIndex + " (material associated to this mesh)  " + "  Name " + mesh.Name);
                 model.meshes[mloop] = m;
 
                 for (int i = 0; i < scene.Materials.Count; i++)
@@ -287,7 +300,7 @@ namespace AssimpLoaderExample
                             var taltfullpath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, content.RootDirectory, tfilename + ".xnb");
                             var taltfileexists = File.Exists(taltfullpath);
 
-                            if (startupconsoleinfo)
+                            if (startupMaterialConsoleInfo)
                                 Console.WriteLine("      Texture[" + j + "] " + "   Index: " + tindex.ToString().PadRight(5) + "   Type: " + ttype.PadRight(15) + "   Filepath: " + tfilepath.PadRight(15) + " Name: "+ tfilename.PadRight(15) + "  ExistsInContent: "+ tfileexists);
                             if (ttype == "Diffuse")
                             {
@@ -319,29 +332,8 @@ namespace AssimpLoaderExample
                         }
                     }
                 }
-
-            }       
-        }
-
-        /// <summary>We recursively walk the nodes here to set the mesh name and transforms.
-        /// </summary>
-        public void SetModelMeshTransformsRecursively(RiggedModel model, Node node, int tabLevel, int meshIndex)
-        {
-            // when we find a node with meshes.
-            if (node.HasMeshes)
-            {
-                // Ok i think only the first mesh is valid i dunno whats up with that.
-                //model.meshTransform = node.Transform;
-                // 
-                model.meshes[meshIndex].nameOfMesh = node.Name;
-                model.meshes[meshIndex].MeshTransformMg = node.Transform.ToMgTransposed();
-                meshIndex++;
-            }
-            // access children
-            for (int i = 0; i < node.Children.Count; i++)
-            {
-                SetModelMeshTransformsRecursively(model, node.Children[i], tabLevel + 1, meshIndex);
-            }
+            }    
+            
         }
 
         /// <summary>  this isn't really necessary but i do it for debuging reasons. 
@@ -352,7 +344,7 @@ namespace AssimpLoaderExample
             modelnode.name = "DummyBone0";
             // though we mark this false we add it to the flat bonenodes we index them via the bone count which is incremented below.
             modelnode.isThisARealBone = false;
-            modelnode.isThisNodeAlongTheBoneRoute = false;
+            modelnode.isANodeAlongTheBoneRoute = false;
             modelnode.OffsetMatrixMg = Matrix.Identity;
             modelnode.LocalTransformMg = Matrix.Identity;
             modelnode.CombinedTransformMg = Matrix.Identity;
@@ -366,19 +358,33 @@ namespace AssimpLoaderExample
         /// We mark neccessary also is this a bone, also is this part of a bone chain, children parents ect.
         /// Add node to model
         /// </summary>
-        public void CreateModelNodeTreeTransformsRecursively(RiggedModel model, RiggedModel.RiggedModelNode modelnode, Node assimpSceneNode, int tabLevel)
+        public void CreateModelNodeTreeTransformsRecursively(RiggedModel model, RiggedModel.RiggedModelNode modelnode, Node curAssimpNode, int tabLevel)
         {
+            string ntab = "";
+            for (int i = 0; i < tabLevel; i++)
+                ntab += "  ";
+
+            // set the nodes name.
+            modelnode.name = curAssimpNode.Name;
+            // set the initial local node transform.
+            modelnode.LocalTransformMg = curAssimpNode.Transform.ToMgTransposed();
+
+            if (startupNodeTreeConsoleInfo)
+                Console.Write(ntab + "  Name: " + modelnode.name);
+
             // model structure creation building here.
-            Point indexPair = SearchSceneMeshBonesForName(assimpSceneNode.Name, scene);
+            Point indexPair = SearchSceneMeshBonesForName(curAssimpNode.Name, scene);
             // if the y value here is more then -1 this is then in fact a actual bone in the scene.
             if (indexPair.Y > -1)
             {
+                if (startupNodeTreeConsoleInfo)
+                    Console.Write( "  Is a Bone.  ");
                 // mark this a bone.
                 modelnode.isThisARealBone = true;
                 // mark it a requisite transform node.
-                modelnode.isThisNodeAlongTheBoneRoute = true;
+                modelnode.isANodeAlongTheBoneRoute = true;
                 // the offset bone matrix
-                modelnode.OffsetMatrixMg = SearchSceneMeshBonesForNameGetOffsetMatrix(assimpSceneNode.Name, scene).ToMgTransposed();
+                modelnode.OffsetMatrixMg = SearchSceneMeshBonesForNameGetOffsetMatrix(curAssimpNode.Name, scene).ToMgTransposed();
                 // this maybe a bit redundant but i really don't care once i load it i can convert it to a more streamlined format later on.
                 MarkParentsNessecary(modelnode);
                 // we are about to add this now to the flat bone nodes list so also denote the index to the final shader transform.
@@ -389,21 +395,63 @@ namespace AssimpLoaderExample
                 model.numberOfBonesInUse++;
             }
 
-            // set the nodes name.
-            modelnode.name = assimpSceneNode.Name;
-            // set the initial local node transform.
-            modelnode.LocalTransformMg = assimpSceneNode.Transform.ToMgTransposed();
+            // determines if this node is actually a mesh node.
+            // if it is we need to then link the node to the mesh or the mesh to the node.
+            if (curAssimpNode.HasMeshes)
+            {
+                modelnode.isThisAMeshNode = true;
+                // if its a node that represents a mesh it should also have references to a node for animations.
+                if (startupNodeTreeConsoleInfo)
+                    Console.Write(" HasMeshes ... MeshIndices For This Node:  ");
+
+                // the mesh node doesn't normally have or need a bind pose matrix however im going to make one here because im actually going to need it.
+                // for complex mesh with bone animations were they are both in the same animation.
+                modelnode.InvOffsetMatrixMg = modelnode.LocalTransformMg.Invert();
+
+                // since i already copied over the meshes then i should set the meshes listed to have this node as the reference node.
+                foreach (var mi in curAssimpNode.MeshIndices)
+                {
+                    if (startupNodeTreeConsoleInfo)
+                        Console.Write("  mesh["+mi + "] nameOfMesh: "+ model.meshes[mi].nameOfMesh);
+                    // get the applicable model mesh reference.
+                    var m = model.meshes[mi];
+                    // set the current node reference to each applicable mesh node ref that uses it so each meshes can reference it' the node transform.
+                    m.nodeRefContainingAnimatedTransform = modelnode;
+                    // set the mesh original local transform.
+                    if (startupNodeTreeConsoleInfo)
+                    {
+                        if(modelnode.isThisARealBone)
+                              Console.Write("  LinkedNodesOffset IsABone: ");
+                        //Console.Write("  LinkedNodesOffset: " + modelnode.OffsetMatrixMg.ToAssimpTransposed().SrtInfoToString(""));
+                    }
+                    m.MeshInitialTransformFromNodeMg = m.nodeRefContainingAnimatedTransform.LocalTransformMg;
+                    m.MeshCombinedFinalTransformMg = Matrix.Identity;
+                    
+                    if (startupNodeTreeConsoleInfo)
+                        Console.Write(" " + " Is a mesh ... Mesh nodeReference Set.");
+                }
+            }
+            if (startupNodeTreeConsoleInfo && startUpMatrixInfo)
+            {
+                Console.WriteLine("");
+                string ntab2 = ntab + "    ";
+                Console.WriteLine(ntab2 + "curAssimpNode.Transform: " + curAssimpNode.Transform.SrtInfoToString(ntab2));
+            }
+
+            // add node to flat node list
+            model.flatListToAllNodes.Add(modelnode);
+            model.numberOfNodesInUse++;
 
             // access children
-            for (int i = 0; i < assimpSceneNode.Children.Count; i++)
+            for (int i = 0; i < curAssimpNode.Children.Count; i++)
             {
-                var childAsimpNode = assimpSceneNode.Children[i];
+                var childAsimpNode = curAssimpNode.Children[i];
                 var childBoneNode = new RiggedModel.RiggedModelNode();
                 // set parent before passing.
                 childBoneNode.parent = modelnode;
-                childBoneNode.name = assimpSceneNode.Children[i].Name;
-                if (childBoneNode.parent.isThisNodeAlongTheBoneRoute)
-                    childBoneNode.isThisNodeAlongTheBoneRoute = true;
+                childBoneNode.name = curAssimpNode.Children[i].Name;
+                if (childBoneNode.parent.isANodeAlongTheBoneRoute)
+                    childBoneNode.isANodeAlongTheBoneRoute = true;
                 modelnode.children.Add(childBoneNode);
                 CreateModelNodeTreeTransformsRecursively(model, modelnode.children[i], childAsimpNode, tabLevel + 1);
             }
@@ -411,31 +459,17 @@ namespace AssimpLoaderExample
 
         /// <summary>Get Scene Model Mesh Vertices. Gets all the mesh data into a mesh array. 
         /// </summary>
-        public RiggedModel GetVerticeIndiceData(RiggedModel model, Scene scene, int meshIndex)
+        public void CreateVerticeIndiceData(RiggedModel model, Scene scene, int meshIndex) // RiggedModel
         {
             // http://sir-kimmi.de/assimp/lib_html/structai_mesh.html#aa2807c7ba172115203ed16047ad65f9e
-            // just print out the flat node bones before we start so i can see whats up.
-            if (startupconsoleinfo)
-            {
-                Console.WriteLine();
-                Console.WriteLine("Flat bone nodes");
-            }
-            for (int i = 0; i < model.flatListToBoneNodes.Count(); i++)
-            {
-                var b = model.flatListToBoneNodes[i];
-                if (startupconsoleinfo)
-                    Console.WriteLine(b.name);
-            }
-            if (startupconsoleinfo)
-                Console.WriteLine();
-
+            
             //
             // Loop meshes for Vertice data.
             //
             for (int mloop = 0; mloop < scene.Meshes.Count; mloop++)
             {
                 Mesh mesh = scene.Meshes[mloop];
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                 {
                     Console.WriteLine(
                     "\n" + "__________________________" +
@@ -451,7 +485,7 @@ namespace AssimpLoaderExample
                 for (int i = 0; i < mesh.UVComponentCount.Length; i++)
                 {
                     int val = mesh.UVComponentCount[i];
-                    if (startupconsoleinfo)
+                    if (startupConsoleinfo)
                         Console.WriteLine("       mesh.UVComponentCount[" + i + "] : " + val);
                 }
 
@@ -511,11 +545,17 @@ namespace AssimpLoaderExample
                 //
                 if (mesh.HasVertexColors(0))
                 {
-                    for (int k = 0; k < mesh.VertexColorChannels[0].Count; k++)
+                    var cchan0 = mesh.VertexColorChannels[0];
+                    for (int k = 0; k < cchan0.Count; k++)
                     {
-                        var f = mesh.VertexColorChannels[k];
-                        var c = f[k];
-                        v[k].Color = new Vector4(c.R, c.G, c.B, c.A);
+                        //var f = mesh.VertexColorChannels[k];
+                        Vector4 cf;
+                        for(int i =0; i < cchan0.Count;i++)
+                        {
+                            var cc = cchan0[i];
+                            cf = new Vector4(cc.R, cc.G, cc.B, cc.A);
+                            v[i].Color = cf;
+                        }
                     }
                 }
                 else
@@ -582,7 +622,7 @@ namespace AssimpLoaderExample
                 if (mesh.HasBones)
                 {
                     var meshBones = mesh.Bones;
-                    if (startupconsoleinfo)
+                    if (startupConsoleinfo)
                         Console.WriteLine("meshBones.Count: " + meshBones.Count);
                     for (int meshBoneIndex = 0; meshBoneIndex < meshBones.Count; meshBoneIndex++)
                     {
@@ -590,7 +630,7 @@ namespace AssimpLoaderExample
                         var boneInMeshName = meshBones[meshBoneIndex].Name;
                         var correspondingFlatBoneListIndex = GetFlatBoneIndexInModel(model, scene, boneInMeshName);
 
-                        if (startupconsoleinfo)
+                        if (startupConsoleinfo)
                         {
                             string str = "  mesh.Name: " + mesh.Name + "mesh[" + mloop + "] " + " bone.Name: " + boneInMeshName.PadRight(17) + "     meshLocalBoneListIndex: " + meshBoneIndex.ToString().PadRight(4) + " flatBoneListIndex: " + correspondingFlatBoneListIndex.ToString().PadRight(4) + " WeightCount: " + boneInMesh.VertexWeightCount;
                             Console.WriteLine(str);
@@ -687,12 +727,12 @@ namespace AssimpLoaderExample
                 }
 
             }
-            return model;
+            //return model;
         }
 
         /// <summary> Gets the assimp animations as the original does it into the model.
         /// </summary>
-        public RiggedModel GetOriginalAnimations(RiggedModel model, Scene scene)
+        public void CreateOriginalAnimations(RiggedModel model, Scene scene)
         {
             // Nice now i find it after i already figured it out.
             // http://sir-kimmi.de/assimp/lib_html/_animation_overview.html
@@ -703,24 +743,32 @@ namespace AssimpLoaderExample
             // Copy over as assimp has it set up.
             for (int i = 0; i < scene.Animations.Count; i++)
             {
-                var anim = scene.Animations[i];
+                var assimpAnim = scene.Animations[i];
                 //________________________________________________
                 // Initial copy over.
-                var mAnim = new RiggedModel.RiggedAnimation();
-                mAnim.animationName = anim.Name;
-                mAnim.TicksPerSecond = anim.TicksPerSecond;
-                mAnim.DurationInTicks = anim.DurationInTicks;
-                mAnim.DurationInSeconds = anim.DurationInTicks / anim.TicksPerSecond;
+                var modelAnim = new RiggedModel.RiggedAnimation();
+                modelAnim.animationName = assimpAnim.Name;
+                modelAnim.TicksPerSecond = assimpAnim.TicksPerSecond;
+                modelAnim.DurationInTicks = assimpAnim.DurationInTicks;
+                modelAnim.DurationInSeconds = assimpAnim.DurationInTicks / assimpAnim.TicksPerSecond;
+                if(AddAdditionalLoopingTime)
+                    modelAnim.DurationInSecondsLooping = modelAnim.DurationInSeconds + AddedLoopingDuration;
+                else
+                    modelAnim.DurationInSecondsLooping = modelAnim.DurationInSeconds;
                 // Default.
-                mAnim.TotalFrames = (int)(mAnim.DurationInSeconds * (double)(defaultAnimatedFramesPerSecondLod));
-                mAnim.TicksPerFramePerSecond = mAnim.TicksPerSecond / (double)(defaultAnimatedFramesPerSecondLod);
-                mAnim.SecondsPerFrame = (1d / (defaultAnimatedFramesPerSecondLod));
+                modelAnim.TotalFrames = (int)(modelAnim.DurationInSeconds * (double)(defaultAnimatedFramesPerSecondLod));
+                modelAnim.TicksPerFramePerSecond = modelAnim.TicksPerSecond / (double)(defaultAnimatedFramesPerSecondLod);
+                modelAnim.SecondsPerFrame = (1d / (defaultAnimatedFramesPerSecondLod));
+                //
+                modelAnim.HasNodeAnimations = assimpAnim.HasNodeAnimations;
+                modelAnim.HasMeshAnimations = assimpAnim.HasMeshAnimations;
                 // 
-                mAnim.animatedNodes = new List<RiggedModel.RiggedAnimationNodes>();
+                // create new animation node list per animation
+                modelAnim.animatedNodes = new List<RiggedModel.RiggedAnimationNodes>();
                 // Loop the node channels.
-                for (int j = 0; j < anim.NodeAnimationChannels.Count; j++)
+                for (int j = 0; j < assimpAnim.NodeAnimationChannels.Count; j++)
                 {
-                    var nodeAnimLists = anim.NodeAnimationChannels[j];
+                    var nodeAnimLists = assimpAnim.NodeAnimationChannels[j];
                     var nodeAnim = new RiggedModel.RiggedAnimationNodes();
                     nodeAnim.nodeName = nodeAnimLists.NodeName;
 
@@ -730,37 +778,31 @@ namespace AssimpLoaderExample
                     nodeAnim.nodeRef = modelnoderef;
 
                     // Place all the different keys lists rot scale pos into this nodes elements lists.
-                    //foreach (var keyList in nodeAnimLists.RotationKeys)
-                    //{
-                    //    var oam = Helpers.ToMgTransposed(keyList.Value.GetMatrix());
-                    //    nodeAnim.rotationTime.Add(keyList.Time / anim.TicksPerSecond);  // / anim.TicksPerSecond if i want to turn it into seconds i probably do.
-                    //    nodeAnim.rotation.Add(oam);
-                    //}
                     foreach (var keyList in nodeAnimLists.RotationKeys)
                     {
                         var oaq = keyList.Value;
-                        nodeAnim.qrotTime.Add(keyList.Time / anim.TicksPerSecond);
-                        nodeAnim.qrot.Add(oaq.ToMg() ); // After i get this to work using assimp quaternions ill get it running with monogames they might need transposed which is the conjugate i think
+                        nodeAnim.qrotTime.Add(keyList.Time / assimpAnim.TicksPerSecond);
+                        nodeAnim.qrot.Add(oaq.ToMg() );
                     }
                     foreach (var keyList in nodeAnimLists.PositionKeys)
                     {
                         var oap = keyList.Value.ToMg();
-                        nodeAnim.positionTime.Add(keyList.Time / anim.TicksPerSecond);
+                        nodeAnim.positionTime.Add(keyList.Time / assimpAnim.TicksPerSecond);
                         nodeAnim.position.Add(oap);
                     }
                     foreach (var keyList in nodeAnimLists.ScalingKeys)
                     {
                         var oas = keyList.Value.ToMg();
-                        nodeAnim.scaleTime.Add(keyList.Time / anim.TicksPerSecond);
+                        nodeAnim.scaleTime.Add(keyList.Time / assimpAnim.TicksPerSecond);
                         nodeAnim.scale.Add(oas);
                     }
                     // Place this populated node into this model animation,  model.origAnim
-                    mAnim.animatedNodes.Add(nodeAnim);
+                    modelAnim.animatedNodes.Add(nodeAnim);
                 }
                 // Place the animation into the model.
-                model.origAnim.Add(mAnim);
+                model.originalAnimations.Add(modelAnim);
             }
-            return model;
+            //return model;
         }
 
         /*  well need this later on if we want these other standard types of animations
@@ -813,7 +855,7 @@ namespace AssimpLoaderExample
         public void MarkParentsNessecary(RiggedModel.RiggedModelNode b)
         {
             b.isThisNodeTransformNecessary = true;
-            b.isThisNodeAlongTheBoneRoute = true;
+            b.isANodeAlongTheBoneRoute = true;
             if (b.parent != null)
                 MarkParentsNessecary(b.parent);
             else
@@ -829,9 +871,9 @@ namespace AssimpLoaderExample
                 MarkParentsUnNessecary(b.parent);
         }
 
-        /// <summary>This also sets the global root and inverse transform from the assimp found first user defined bone.
+        /// <summary>Not sure how much this is needed if at all but this marks the first root bone in the model.
         /// </summary>
-        public void FindSetActualBoneInModel(RiggedModel model, Node node)
+        public void FindFirstBoneInModel(RiggedModel model, Node node)
         {
             bool result = false;
             Point indexPair = SearchSceneMeshBonesForName(node.Name, scene);
@@ -840,13 +882,13 @@ namespace AssimpLoaderExample
                 result = true;
                 model.firstRealBoneInTree = SearchAssimpNodesForName(node.Name, model.rootNodeOfTree);
                 model.firstRealBoneInTree.isTheFirstBone = true;
-                model.globalPreTransformNode = model.firstRealBoneInTree.parent;
-                model.globalPreTransformNode.isTheGlobalPreTransformNode = true;
+                //model.globalPreTransformNode = model.firstRealBoneInTree.parent; // this is pointles here initially done due to bad advice from a site.
+                //model.globalPreTransformNode.isTheGlobalPreTransformNode = true; // this is pointles here initially done due to bad advice from a site.
             }
             else
             {
                 foreach (var c in node.Children)
-                    FindSetActualBoneInModel(model, c);
+                    FindFirstBoneInModel(model, c);
             }
         }
 
@@ -866,7 +908,7 @@ namespace AssimpLoaderExample
             }
             if (index == -1)
             {
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                     Console.WriteLine("**** No Index found for the named bone (" + nameToFind + ") this is not good ");
             }
             return index;
@@ -975,7 +1017,29 @@ namespace AssimpLoaderExample
             return result;
         }
 
+        
+
         /// <summary>
+        /// Argg pretty much useless the way assimp does it this was a boo boo
+        /// returns a reference to the mesh that matches the named mesh.
+        /// returns null if no match found.
+        /// </summary>
+        private RiggedModel.RiggedModelMesh SearchModelMeshesForNameGetRefToMesh(string name, RiggedModel model)
+        {
+            RiggedModel.RiggedModelMesh result = null;
+            for(int j = 0; j < model.meshes.Length; j++)
+            {
+                var m = model.meshes[j];
+                if(name == m.nameOfMesh)
+                {
+                    result = model.meshes[j];
+                }
+            }           
+            return result;
+        }
+
+        /// <summary>
+        /// Same as ModelSearchIterateNodeTreeForNameGetRefToNode
         /// </summary>
         public static RiggedModel.RiggedModelNode ModelGetRefToNode(string name, RiggedModel.RiggedModelNode rootNodeOfTree) // , OnlyAssimpBasedModel model );
             {
@@ -983,6 +1047,7 @@ namespace AssimpLoaderExample
             }
         
         /// <summary>
+        /// Searches the model for the name of the node if found it returns the model node if not it returns null.
         /// </summary>
         private static RiggedModel.RiggedModelNode ModelSearchIterateNodeTreeForNameGetRefToNode(string name, RiggedModel.RiggedModelNode node)
             {
@@ -1005,12 +1070,88 @@ namespace AssimpLoaderExample
                 return result;
             }
 
+
+        public void MinimalInfo(RiggedModel model, string filePath)
+        {
+            Console.WriteLine("\n");
+            Console.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            Console.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            Console.WriteLine("Model Loaded");
+            Console.WriteLine();
+            Console.WriteLine(filePath);
+            Console.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            Console.WriteLine("Materials");
+            Console.WriteLine("");
+            InfoForMaterials(model, scene);
+            Console.WriteLine();
+            Console.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            Console.WriteLine("Animations");
+            Console.WriteLine("");
+            for (int i = 0; i < scene.Animations.Count; i++)
+            {
+                var anim = scene.Animations[i];
+                Console.WriteLine($"_____________________________________");
+                Console.WriteLine($"Anim #[{i}] Name: {anim.Name}");
+                Console.WriteLine($"_____________________________________");
+                Console.WriteLine($"  Duration: {anim.DurationInTicks} / {anim.TicksPerSecond} sec.   total duration in seconds: {anim.DurationInTicks / anim.TicksPerSecond}");
+                Console.WriteLine($"  Node Animation Channels: {anim.NodeAnimationChannelCount} ");
+                Console.WriteLine($"  Mesh Animation Channels: {anim.MeshAnimationChannelCount} ");
+                Console.WriteLine($"  Mesh Morph     Channels: {anim.MeshMorphAnimationChannelCount} ");
+            }
+            Console.WriteLine();
+            Console.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            Console.WriteLine("Node Heirarchy");
+            Console.WriteLine("");
+            InfoRiggedModelNode(model.rootNodeOfTree, 0);
+            Console.WriteLine("");
+            Console.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            Console.WriteLine();
+            Console.WriteLine($"Model");
+            Console.WriteLine($"{GetFileName(filePath, true)} Loaded");
+            Console.WriteLine();
+            Console.WriteLine("Model number of bones:    " + (model.numberOfBonesInUse -1).ToString() + " +1 dummy bone"); // -1 dummy bone.
+            Console.WriteLine("Model number of animaton: " + model.originalAnimations.Count);
+            Console.WriteLine("Model number of meshes:   "+model.meshes.Length);
+            Console.WriteLine("BoneRoot's Node Name:     " + model.rootNodeOfTree.name);
+            Console.WriteLine();
+            Console.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            Console.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            Console.WriteLine("\n");
+        }
+        public void InfoRiggedModelNode(RiggedModel.RiggedModelNode n, int tabLevel)
+        {
+            string ntab = "";
+            for (int i = 0; i < tabLevel; i++)
+                ntab += "  ";
+
+            string msg = ntab + $"Name: {n.name}  ".PadRight(30) + " ";
+            if (n.isTheRootNode)
+                msg += $", isTheRootNode".PadRight(20);
+            if (n.isThisARealBone)
+                msg += $", isARealBone".PadRight(20);
+            if (n.isTheFirstBone)
+                msg += $", isTheFirstBone".PadRight(20);
+            if (n.isANodeAlongTheBoneRoute)
+                msg += $", isAlongTheBoneRoute".PadRight(20);
+            if (n.isThisAMeshNode)
+                msg += $", isMeshNode".PadRight(20);
+            if (n.isThisTheFirstMeshNode)
+                msg += $", isTheFirstMeshNode".PadRight(20);
+
+            Console.WriteLine(msg);
+
+            for (int i = 0; i < n.children.Count; i++)
+            {
+                InfoRiggedModelNode(n.children[i], tabLevel + 1);
+            }
+        }
+
         /// <summary>
         /// </summary>
-        public void PrintAnimData(Scene scene)
+        public void InfoForAnimData(Scene scene)
         {
             //int i;
-            if (startupconsoleinfo)
+            if (startupConsoleinfo)
             {
                 string str = "\n\n AssimpSceneConsoleOutput ========= Animation Data========= \n\n";
                 Console.WriteLine(str);
@@ -1019,18 +1160,18 @@ namespace AssimpLoaderExample
             for (int i = 0; i < scene.Animations.Count; i++)
             {
                 var anim = scene.Animations[i];
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                 {
-                    Console.WriteLine($"__________________________");
+                    Console.WriteLine($"_________________________________");
                     Console.WriteLine($"Anim #[{i}] Name: {anim.Name}");
-                    Console.WriteLine($"__________________________");
+                    Console.WriteLine($"_________________________________");
                     Console.WriteLine($"  Duration: {anim.DurationInTicks} / {anim.TicksPerSecond} sec.   total duration in seconds: {anim.DurationInTicks / anim.TicksPerSecond}");
                     Console.WriteLine($"  HasMeshAnimations: {anim.HasMeshAnimations} ");
                     Console.WriteLine($"  Mesh Animation Channels: {anim.MeshAnimationChannelCount} ");
                 }
                 foreach (var chan in anim.MeshAnimationChannels)
                 {
-                    if (startupconsoleinfo)
+                    if (startupConsoleinfo)
                     {
                             Console.WriteLine($"  Channel MeshName {chan.MeshName}");        // the node name has to be used to tie this channel to the originally printed hierarchy.  BTW, node names must be unique.
                             Console.WriteLine($"    HasMeshKeys: {chan.HasMeshKeys}");       // access via chan.PositionKeys
@@ -1038,11 +1179,11 @@ namespace AssimpLoaderExample
                                                                                                //Console.WriteLine($"    Scaling  Keys: {chan.MeshKeys}");        // 
                     }
                 }
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                     Console.WriteLine($"  Mesh Morph Channels: {anim.MeshMorphAnimationChannelCount} ");
                 foreach (var chan in anim.MeshMorphAnimationChannels)
                 {
-                    if (startupconsoleinfo && (targetNodeConsoleName != "" || targetNodeConsoleName == chan.Name))
+                    if (startupConsoleinfo && (targetNodeConsoleName != "" || targetNodeConsoleName == chan.Name))
                     {
                         Console.WriteLine($"  Channel {chan.Name}");
                         Console.WriteLine($"    HasMeshMorphKeys: {chan.HasMeshMorphKeys}");       // 
@@ -1050,9 +1191,9 @@ namespace AssimpLoaderExample
                         //Console.WriteLine($"    Scaling  Keys: {chan.MeshMorphKeys}");        // 
                     }
                 }
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                 {
-                    if (startupconsoleinfo)
+                    if (startupConsoleinfo)
                     {
                         Console.WriteLine($"  HasNodeAnimations: {anim.HasNodeAnimations} ");
                         Console.WriteLine($"   Node Channels: {anim.NodeAnimationChannelCount}");
@@ -1060,7 +1201,7 @@ namespace AssimpLoaderExample
                 }
                 foreach (var chan in anim.NodeAnimationChannels)
                 {
-                    if (startupconsoleinfo && (targetNodeConsoleName == "" || targetNodeConsoleName == chan.NodeName))
+                    if (startupConsoleinfo && (targetNodeConsoleName == "" || targetNodeConsoleName == chan.NodeName))
                     {
                         Console.Write($"   Channel {chan.NodeName}".PadRight(35));        // the node name has to be used to tie this channel to the originally printed hierarchy.  BTW, node names must be unique.
                         Console.Write($"     Position Keys: {chan.PositionKeyCount}".PadRight(25));         // access via chan.PositionKeys
@@ -1068,14 +1209,14 @@ namespace AssimpLoaderExample
                         Console.WriteLine($"     Scaling  Keys: {chan.ScalingKeyCount}".PadRight(25));        // 
                     }
                 }
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                 {
                     Console.WriteLine("\n");
                     Console.WriteLine("\n Ok so this is all gonna go into our model class basically as is kinda. frownzers i needed it like this after all.");
                 }
                 foreach (var anode in anim.NodeAnimationChannels)
                 {
-                    if (startupconsoleinfo && (targetNodeConsoleName == "" || targetNodeConsoleName == anode.NodeName))
+                    if (startupConsoleinfo && (targetNodeConsoleName == "" || targetNodeConsoleName == anode.NodeName))
                     {
                         Console.WriteLine($"   Channel {anode.NodeName}\n   (time is in animation ticks it shouldn't exceed anim.DurationInTicks {anim.DurationInTicks} or total duration in seconds: {anim.DurationInTicks / anim.TicksPerSecond})");        // the node name has to be used to tie this channel to the originally printed hierarchy.  node names must be unique.
                         Console.WriteLine($"     Position Keys: {anode.PositionKeyCount}");       // access via chan.PositionKeys
@@ -1083,23 +1224,23 @@ namespace AssimpLoaderExample
                         for (int j = 0; j < anode.PositionKeys.Count; j++)
                         {
                             var key = anode.PositionKeys[j];
-                            if (startupconsoleinfo)
+                            if (startupConsoleinfo)
                                 Console.WriteLine("       index[" + (j + "]").PadRight(5) + " Time: " + key.Time.ToString().PadRight(17) + " secs: " + (key.Time / anim.TicksPerSecond).ToStringTrimed() + "  Position: {" + key.Value.ToStringTrimed() + "}");
                         }
-                        if (startupconsoleinfo)
+                        if (startupConsoleinfo)
                             Console.WriteLine($"     Rotation Keys: {anode.RotationKeyCount}");       // 
                         for (int j = 0; j < anode.RotationKeys.Count; j++)
                         {
                             var key = anode.RotationKeys[j];
-                            if (startupconsoleinfo)
+                            if (startupConsoleinfo)
                                 Console.WriteLine("       index[" + (j + "]").PadRight(5) + " Time: " + key.Time.ToStringTrimed() + " secs: " + (key.Time / anim.TicksPerSecond).ToStringTrimed() + "  QRotation: {" + key.Value.ToStringTrimed() + "}");
                         }
-                        if (startupconsoleinfo)
+                        if (startupConsoleinfo)
                             Console.WriteLine($"     Scaling  Keys: {anode.ScalingKeyCount}");        // 
                         for (int j = 0; j < anode.ScalingKeys.Count; j++)
                         {
                             var key = anode.ScalingKeys[j];
-                            if (startupconsoleinfo)
+                            if (startupConsoleinfo)
                                 Console.WriteLine("       index[" + (j + "]").PadRight(5) + " Time: " + key.Time.ToStringTrimed() + " secs: " + (key.Time / anim.TicksPerSecond).ToStringTrimed() + "  Scaling: {" + key.Value.ToStringTrimed() + "}");
                         }
                     }
@@ -1114,13 +1255,31 @@ namespace AssimpLoaderExample
 
         //=============================================================================
         /// <summary> Can be removed later or disregarded this is mainly for debuging. </summary>
-        public void GetMaterialsInfoForNow(RiggedModel model, Scene scene)
+        public void InfoFlatBones(RiggedModel model)
+        {
+            // just print out the flat node bones before we start so i can see whats up.
+            if (startupConsoleinfo)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Flat bone nodes count: " + model.flatListToBoneNodes.Count());
+                for (int i = 0; i < model.flatListToBoneNodes.Count(); i++)
+                {
+                    var b = model.flatListToBoneNodes[i];
+                    Console.WriteLine(b.name);
+                }
+                Console.WriteLine();
+            }
+        }
+
+        //=============================================================================
+        /// <summary> Can be removed later or disregarded this is mainly for debuging. </summary>
+        public void InfoForMaterials(RiggedModel model, Scene scene)
         {
             for (int mloop = 0; mloop < scene.Meshes.Count; mloop++)
             {
                 Mesh mesh = scene.Meshes[mloop];
 
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                 {
                     Console.WriteLine(
                     "\n" + "__________________________" +
@@ -1137,12 +1296,12 @@ namespace AssimpLoaderExample
                 for (int i = 0; i < mesh.UVComponentCount.Length; i++)
                 {
                     int val = mesh.UVComponentCount[i];
-                    if (startupconsoleinfo)
+                    if (startupConsoleinfo && val > 0)
                         Console.WriteLine("     mesh.UVComponentCount[" + i + "] : int value: " + val);
                 }
                 var tcc = mesh.TextureCoordinateChannelCount;
                 var tc = mesh.TextureCoordinateChannels;
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                 {
                     Console.WriteLine("  mesh.HasMeshAnimationAttachments: " + mesh.HasMeshAnimationAttachments);
                     Console.WriteLine("  mesh.TextureCoordinateChannelCount: " + mesh.TextureCoordinateChannelCount);
@@ -1151,7 +1310,7 @@ namespace AssimpLoaderExample
                 for (int i = 0; i < mesh.TextureCoordinateChannels.Length; i++)
                 {
                     var channel = mesh.TextureCoordinateChannels[i];
-                    if (startupconsoleinfo)
+                    if (startupConsoleinfo && channel.Count > 0)
                         Console.WriteLine("     mesh.TextureCoordinateChannels[" + i + "]  count " + channel.Count);
                     for (int j = 0; j < channel.Count; j++)
                     {
@@ -1159,7 +1318,7 @@ namespace AssimpLoaderExample
                         //Console.Write(" channel[" + j + "].Count: " + channel.Count);
                     }
                 }         
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                     Console.WriteLine();
 
                 //// Uv
@@ -1183,28 +1342,28 @@ namespace AssimpLoaderExample
             {
                 var texturescount = scene.TextureCount;
                 var textures = scene.Textures;
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                     Console.WriteLine("\nTextures " + " Count " + texturescount + "\n");
                 for (int i = 0; i < textures.Count; i++)
                 {
                     var name = textures[i];
-                    if (startupconsoleinfo)
+                    if (startupConsoleinfo)
                         Console.WriteLine("Textures[" + i + "] " + name);
                 }
             }
             else
             {
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                     Console.WriteLine("\nTextures " + " None ");
             }
 
             if (scene.HasMaterials)
             {
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                     Console.WriteLine("\nMaterials scene.MaterialCount " + scene.MaterialCount + "\n");
                 for (int i = 0; i < scene.Materials.Count; i++)
                 {
-                    if (startupconsoleinfo)
+                    if (startupConsoleinfo)
                     {
                         Console.WriteLine();
                         Console.WriteLine("Material[" + i + "] ");
@@ -1213,11 +1372,11 @@ namespace AssimpLoaderExample
                     var m = scene.Materials[i];
                     if (m.HasName)
                     {
-                        if (startupconsoleinfo)
+                        if (startupConsoleinfo)
                             Console.Write(" Name: " + m.Name);
                     }
                     var t = m.GetAllMaterialTextures();
-                    if (startupconsoleinfo)
+                    if (startupConsoleinfo)
                     {
                         Console.WriteLine("  GetAllMaterialTextures Length " + t.Length);
                         Console.WriteLine();
@@ -1229,16 +1388,16 @@ namespace AssimpLoaderExample
                         var ttype = t[j].TextureType.ToString();
                         var tfilepath = t[j].FilePath;
                         // J matches up to the texture coordinate channel uv count it looks like.
-                        if (startupconsoleinfo)
+                        if (startupConsoleinfo)
                         {
                             Console.WriteLine("   Texture[" + j + "] " + "   Index:" + tindex + "   Type: " + ttype + "   Filepath: " + tfilepath);
                         }
                     }
-                    if (startupconsoleinfo)
+                    if (startupConsoleinfo)
                         Console.WriteLine();
 
                     // added info
-                    if (startupconsoleinfo)
+                    if (startupConsoleinfo)
                     {
                         Console.WriteLine("   Material[" + i + "] " + "  HasBlendMode:" + m.HasBlendMode + "  HasBumpScaling: " + m.HasBumpScaling + "  HasOpacity: " + m.HasOpacity + "  HasShadingMode: " + m.HasShadingMode + "  HasTwoSided: " + m.HasTwoSided + "  IsTwoSided: " + m.IsTwoSided);
                         Console.WriteLine("   Material[" + i + "] " + "  HasBlendMode:" + m.HasShininess + "  HasTextureDisplacement:" + m.HasTextureDisplacement + "  HasTextureEmissive:" + m.HasTextureEmissive + "  HasTextureReflection:" + m.HasTextureReflection);
@@ -1247,12 +1406,12 @@ namespace AssimpLoaderExample
                         Console.WriteLine("   Material[" + i + "] " + "  ColorReflective:" + m.ColorReflective + "  ColorEmissive: " + m.ColorEmissive + "  ColorTransparent: " + m.ColorTransparent);
                     }
                 }
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                     Console.WriteLine();
             }
             else
             {
-                if (startupconsoleinfo)
+                if (startupConsoleinfo)
                     Console.WriteLine("\n   No Materials Present. \n");
             }
         }
@@ -1270,7 +1429,7 @@ namespace AssimpLoaderExample
     public static class OpenAssimpToMgHelpers
     {
         //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        // +++++++++++++++  functional helpers +++++++++++++++++++++++
+        // +++++++++++++++  functional helpers extensions +++++++++++++++++++++++
         //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
@@ -1321,15 +1480,6 @@ namespace AssimpLoaderExample
             return m;
         }
 
-        public static Color ToColor(this Vector4 v)
-        {
-            return new Color(v.X, v.Y, v.Z, v.W);
-        }
-        public static Vector4 ToVector4(this Color v)
-        {
-            return new Vector4(1f/v.R, 1f/v.G, 1f/v.B, 1f/v.A);
-        }
-
         public static Vector3 ToMg(this Assimp.Vector3D v)
         {
             return new Vector3(v.X, v.Y, v.Z);
@@ -1337,46 +1487,153 @@ namespace AssimpLoaderExample
 
         public static string ToStringTrimed(this Assimp.Vector3D v)
         {
-            string d = "+0.00#;-0.00#"; // "0.00";
+            string d = "+0.000;-0.000"; // "0.00";
             int pamt = 8;
             return (v.X.ToString(d).PadRight(pamt) + ", " + v.Y.ToString(d).PadRight(pamt) + ", " + v.Z.ToString(d).PadRight(pamt));
         }
         public static string ToStringTrimed(this Assimp.Quaternion q)
         {
-            string d = "+0.00#;-0.00#"; // "0.00";
-            int pamt = 8;
-            return ("x: " + q.X.ToString(d).PadRight(pamt) + "y: " + q.Y.ToString(d).PadRight(pamt) + "z: " + q.Z.ToString(d).PadRight(pamt) + "w: " + q.W.ToString(d).PadRight(pamt));
-        }
-        public static string ToStringTrimed(this int v)
-        {
-            string d = "+0.00#;-0.00#"; // "0.00";
-            int pamt = 8;
-            return (v.ToString(d).PadRight(pamt));
-        }
-        public static string ToStringTrimed(this float v)
-        {
-            string d = "+0.00#;-0.00#"; // "0.00";
-            int pamt = 8;
-            return (v.ToString(d).PadRight(pamt));
-        }
-        public static string ToStringTrimed(this double v)
-        {
-            string d = "+0.00#;-0.00#"; // "0.00";
-            int pamt = 8;
-            return (v.ToString(d).PadRight(pamt));
-        }
-        public static string ToStringTrimed(this Vector3 v)
-        {
-            string d = "+0.00#;-0.00#"; // "0.00";
-            int pamt = 8;
-            return (v.X.ToString(d).PadRight(pamt) + ", " + v.Y.ToString(d).PadRight(pamt) + ", " + v.Z.ToString(d).PadRight(pamt));
-        }
-        public static string ToStringTrimed(this Microsoft.Xna.Framework.Quaternion q)
-        {
-            string d = "+0.00#;-0.00#"; // "0.00";
+            string d = "+0.000;-0.000"; // "0.00";
             int pamt = 8;
             return ("x: " + q.X.ToString(d).PadRight(pamt) + "y: " + q.Y.ToString(d).PadRight(pamt) + "z: " + q.Z.ToString(d).PadRight(pamt) + "w: " + q.W.ToString(d).PadRight(pamt));
         }
 
+        // ______________________
+
+        /// <summary>
+        /// just use the assimp version to get the info;
+        /// </summary>
+        public static string SrtInfoToString(this Matrix mat, string tabspaces)
+        {
+            Assimp.Matrix4x4 m = mat.ToAssimpTransposed();
+            return SrtInfoToString(m, tabspaces);
+        }
+
+        public static string SrtInfoToString(this Assimp.Matrix4x4 m, string tabspaces)
+        {
+            var checkdeterminatevalid = Math.Abs(m.Determinant()) < 1e-5;
+            string str = "";
+            // this can fail if the determinante is invalid.
+            if (checkdeterminatevalid == false)
+            {
+                Vector3D scale;
+                Assimp.Quaternion rot;
+                Vector3D rotAngles;
+                Vector3D trans;
+                m.Decompose(out scale, out rot, out trans);
+                QuatToEulerXyz(ref rot, out rotAngles);
+                var rotDeg = rotAngles * (float)(180d / Math.PI);
+                int padamt = 2;
+                str += "\n" + tabspaces + "    " + "As Quaternion     ".PadRight(padamt) + rot.ToStringTrimed();
+                str += "\n" + tabspaces + "    " + "Translation           ".PadRight(padamt) + trans.ToStringTrimed();
+                if (scale.X != scale.Y || scale.Y != scale.Z || scale.Z != scale.X)
+                str += "\n" + tabspaces + "    " + "Scale                    ".PadRight(padamt) + scale.ToStringTrimed();
+                else
+                str += "\n" + tabspaces + "    " + "Scale                    ".PadRight(padamt) + scale.X.ToStringTrimed();
+                str += "\n" + tabspaces + "    " + "Rotation degrees ".PadRight(padamt) + rotDeg.ToStringTrimed();// + "   radians: " + rotAngles.ToStringTrimed();
+                str += "\n";
+            }
+            return str;
+        }
+        public static string GetSrtFromMatrix(Assimp.Matrix4x4 m, string tabspaces)
+        {
+            var checkdeterminatevalid = Math.Abs(m.Determinant()) < 1e-5;
+            string str = "";
+            int pamt = 12;
+            // this can fail if the determinante is invalid.
+            if (checkdeterminatevalid == false)
+            {
+                Vector3D scale;
+                Assimp.Quaternion rot;
+                Vector3D rotAngles;
+                Vector3D trans;
+                m.Decompose(out scale, out rot, out trans);
+                QuatToEulerXyz(ref rot, out rotAngles);
+                var rotDeg = rotAngles * (float)(180d / Math.PI);
+                str += "\n" + tabspaces + " Rot (deg)".PadRight(pamt) + ":" + rotDeg.ToStringTrimed();// + "   radians: " + rotAngles.ToStringTrimed();
+                if (scale.X != scale.Y || scale.Y != scale.Z || scale.Z != scale.X)
+                    str += "\n" + tabspaces + " Scale ".PadRight(pamt) + ":" + scale.ToStringTrimed();
+                else
+                    str += "\n" + tabspaces + " Scale".PadRight(pamt) + ":" + scale.X.ToStringTrimed();
+                str += "\n" + tabspaces + " Position".PadRight(pamt) + ":" + trans.ToStringTrimed();
+                str += "\n";
+            }
+            return str;
+        }
+        /// <summary>
+        /// returns true if decomposed failed.
+        /// </summary>
+        public static bool GetSrtFromMatrix(Matrix mat, string tabspaces, out Vector3 scale, out Vector3 trans, out Vector3 degRot)
+        {
+            var m = mat.ToAssimpTransposed();
+            var checkdeterminatevalid = Math.Abs(m.Determinant()) < 1e-5;
+            string str = "";
+            int pamt = 12;
+            // this can fail if the determinante is invalid.
+            if (checkdeterminatevalid == false)
+            {
+                Vector3D _scale = new Vector3D();
+                Assimp.Quaternion _rot = new Assimp.Quaternion();
+                Vector3D _rotAngles = new Vector3D();
+                Vector3D _trans = new Vector3D();
+                m.Decompose(out _scale, out _rot, out _trans);
+                QuatToEulerXyz(ref _rot, out _rotAngles);
+                var rotDeg = _rotAngles * (float)(180d / Math.PI);
+                scale = _scale.ToMg();
+                degRot = rotDeg.ToMg();
+                trans = _trans.ToMg();
+            }
+            else
+            {
+                Vector3D _scale = new Vector3D();
+                Assimp.Quaternion _rot = new Assimp.Quaternion();
+                Vector3D _rotAngles = new Vector3D();
+                Vector3D _trans = new Vector3D();
+                var rotDeg = _rotAngles * (float)(180d / Math.PI);
+                scale = _scale.ToMg();
+                degRot = _rotAngles.ToMg();
+                trans = _trans.ToMg();
+            }
+            return checkdeterminatevalid;
+        }
+        // quat4 -> (roll, pitch, yaw)
+        private static void QuatToEulerXyz(ref Assimp.Quaternion q1, out Vector3D outVector)
+        {
+            // http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/
+            double sqw = q1.W * q1.W;
+            double sqx = q1.X * q1.X;
+            double sqy = q1.Y * q1.Y;
+            double sqz = q1.Z * q1.Z;
+            double unit = sqx + sqy + sqz + sqw; // if normalised is one, otherwise is correction factor
+            double test = q1.X * q1.Y + q1.Z * q1.W;
+            if (test > 0.499 * unit)
+            { // singularity at north pole
+                outVector.Z = (float)(2 * Math.Atan2(q1.X, q1.W));
+                outVector.Y = (float)(Math.PI / 2);
+                outVector.X = 0;
+                return;
+            }
+            if (test < -0.499 * unit)
+            { // singularity at south pole
+                outVector.Z = (float)(-2 * Math.Atan2(q1.X, q1.W));
+                outVector.Y = (float)(-Math.PI / 2);
+                outVector.X = 0;
+                return;
+            }
+            outVector.Z = (float)Math.Atan2(2 * q1.Y * q1.W - 2 * q1.X * q1.Z, sqx - sqy - sqz + sqw);
+            outVector.Y = (float)Math.Asin(2 * test / unit);
+            outVector.X = (float)Math.Atan2(2 * q1.X * q1.W - 2 * q1.Y * q1.Z, -sqx + sqy - sqz + sqw);
+        }
+        public static Assimp.Matrix4x4 ToAssimpTransposed(this Matrix m)
+        {
+            Assimp.Matrix4x4 ma = Matrix4x4.Identity;
+            ma.A1 = m.M11; ma.A2 = m.M12; ma.A3 = m.M13; ma.A4 = m.M14;
+            ma.B1 = m.M21; ma.B2 = m.M22; ma.B3 = m.M23; ma.B4 = m.M24;
+            ma.C1 = m.M31; ma.C2 = m.M32; ma.C3 = m.M33; ma.C4 = m.M34;
+            ma.D1 = m.M41; ma.D2 = m.M42; ma.D3 = m.M43; ma.D4 = m.M44;
+            ma.Transpose();
+            return ma;
+        }
+         
     }
 }
