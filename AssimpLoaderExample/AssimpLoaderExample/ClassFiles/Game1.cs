@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -6,7 +7,8 @@ using Microsoft.Xna.Framework.Input;
 /*Read Me's  ...Various Controls...  Keyboard camera controls q thru c are all look command keys   q and e are forward and back the left right up down arrows are strafe movement.
    This camera class is pretty wonky i sort rushed the controls setup and mucked up how i thought it should work the mouse right click can control the camera but its wonky.
  
-    Press R to run a animation F to stop it and Space Bar to step thru each frame.
+    Press R to run a animation F to stop it  N next frame O for next matrix node to display. and Space Bar to step thru each frame.
+    F5 for wireframe F6 to view the models normals.
      */
 
 /* Read the below notes for the basics on adding / using assimp directly in monogame via visual studio nuget.net.
@@ -51,6 +53,7 @@ namespace AssimpLoaderExample
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
         SpriteFont currentFont;
+        StringBuilder currentMsg = new StringBuilder();
 
         RiggedModel model;
         Effect riggedEffect; // im using my own rigged model effect here.
@@ -64,7 +67,9 @@ namespace AssimpLoaderExample
         // a variable that tracks the rotation of the light.
         float lightrot = 0f;
         // a variable that defines the initial position of the light.
-        Vector3 LightPosition = new Vector3(0f, 10f, 500f);
+        Vector3 initialLightPosition = new Vector3(0f, 0f, 1200f);
+        // the light transform
+        Matrix lightTransform = Matrix.Identity;
 
         // pimitives to help see were the light is and what its effects are on a smooth surface.
         SpherePNTT bigShere;
@@ -78,7 +83,8 @@ namespace AssimpLoaderExample
         bool WireframeOnOrOff = false;
         bool ShowNormals = false;
 
-        public SamplerState ss_standard = new SamplerState() { Filter = TextureFilter.Point, AddressU = TextureAddressMode.Clamp, AddressV = TextureAddressMode.Clamp };
+        public SamplerState ss_point = new SamplerState() { Filter = TextureFilter.Point };
+        public SamplerState ss_point_clamp = new SamplerState() { Filter = TextureFilter.Point, AddressU = TextureAddressMode.Clamp, AddressV = TextureAddressMode.Clamp };
         public DepthStencilState ds_standard_always = new DepthStencilState() { DepthBufferEnable = true, DepthBufferFunction = CompareFunction.Always };
         public DepthStencilState ds_standard_less = new DepthStencilState() { DepthBufferEnable = true, DepthBufferFunction = CompareFunction.Less };
         public DepthStencilState ds_standard_more = new DepthStencilState() { DepthBufferEnable = true, DepthBufferFunction = CompareFunction.Greater };
@@ -116,29 +122,32 @@ namespace AssimpLoaderExample
 
             bigShere = new SpherePNTT(false, 12, 25f, false, true);
             littleSphere = new SpherePNTT(false, 12, 5f, true);
+            lineToLight = new LinePCT(.1f, Color.White, Vector3.Zero, initialLightPosition);
 
             // prep model reader.
             RiggedModelLoader modelReader = new RiggedModelLoader(Content, riggedEffect);
             RiggedModelLoader.DefaultTexture = defaultTexture;
-            model = modelReader.LoadAsset("dude.fbx", 24);
-            //model = modelReader.LoadAsset("PipeFromCube15VGrpsLCRetexAnimKeyframesMovedUp.fbx", 24); // damn its hard to find models that work.
-            //model = modelReader.LoadAsset("Victoria-hat-dance.FBX", 24);
-            //model = modelReader.LoadAsset("Futuristic combat jet.fbx", 24);
-            //model = modelReader.LoadAsset("astroBoy_walk_Max.dae", 24);
-
-            modelVisualNormals = new ModelsVisualNormals(model, orientationArrows, 1f, 1f);
+            modelReader.AddAdditionalLoopingTime = true;
+            modelReader.AddedLoopingDuration = .1f;
+            //
+            //model = modelReader.LoadAsset("dude.fbx", 24);
+            //model = modelReader.LoadAsset("new_thin_zombie.fbx", 24); 
+            //model = modelReader.LoadAsset("AnimatedCube5.fbx", 24);
+            model = modelReader.LoadAsset("PipeFromCube16VGrpsLCRetexAnimKeyframesMovedUp.fbx", 24); // damn its hard to find models that work.
+            
+            modelVisualNormals = new ModelsVisualNormals(model, orientationArrows, .5f, 1f);
             primitiveNormalArrows = new NormalArrow(bigShere.vertices, bigShere.indices, orientationArrows, 1f);
-
         }
         public void LoadUpDefaultCamera()
         {
             // i really need to shore up my camera classes into one and fix them.
-            cam = new Basic3dExampleCamera(GraphicsDevice, this.Window);
+            cam = new Basic3dExampleCamera(GraphicsDevice, this.Window, false);
             cam.FieldOfViewDegrees = 85;
+            cam.MovementUnitsPerSecond = 40f;
             cam.CameraUi(Basic3dExampleCamera.CAM_TYPE_OPTION_FREE);
             cam.CameraType(Basic3dExampleCamera.CAM_UI_OPTION_EDIT_LAYOUT);
-            cam.Position = new Vector3(2, 33, 52);
-            cam.LookAtDirection = Vector3.Forward;
+            cam.Position = new Vector3(2, 33, 402);
+            cam.LookAtTargetPosition = Vector3.Zero - cam.Position;
         }
         public void LoadEffects()
         {
@@ -154,14 +163,14 @@ namespace AssimpLoaderExample
             riggedEffect.Parameters["View"].SetValue(cam.View);
             riggedEffect.Parameters["Projection"].SetValue(cam.Projection);
             riggedEffect.Parameters["TextureA"].SetValue(defaultTexture);
-            riggedEffect.Parameters["WorldLightPosition"].SetValue(LightPosition);
+            riggedEffect.Parameters["WorldLightPosition"].SetValue(initialLightPosition);
             // set up the effect initially to change how you want the shader to behave.
-            riggedEffect.Parameters["AmbientAmt"].SetValue(.1f);
-            riggedEffect.Parameters["DiffuseAmt"].SetValue(.7f);
-            riggedEffect.Parameters["SpecularAmt"].SetValue(.5f);
-            riggedEffect.Parameters["SpecularSharpness"].SetValue(.68f);
-            riggedEffect.Parameters["SpecularLightVsTexelInfluence"].SetValue(.50f);
-            riggedEffect.Parameters["LightColor"].SetValue( new Vector4(.999f,.999f, .999f, 1.0f) );
+            riggedEffect.Parameters["AmbientAmt"].SetValue(.15f);
+            riggedEffect.Parameters["DiffuseAmt"].SetValue(.6f);
+            riggedEffect.Parameters["SpecularAmt"].SetValue(.25f);
+            riggedEffect.Parameters["SpecularSharpness"].SetValue(.88f);
+            riggedEffect.Parameters["SpecularLightVsTexelInfluence"].SetValue(.40f);
+            riggedEffect.Parameters["LightColor"].SetValue( new Vector4(.099f,.099f, .999f, 1.0f) );
 
         }
 
@@ -176,39 +185,116 @@ namespace AssimpLoaderExample
                 Exit();
 
             // run the animation
-            if (Keyboard.GetState().IsKeyDown(Keys.R) )
+            if (Keyboard.GetState().IsKeyDown(Keys.R) && Pause(gameTime))
             {
                 model.BeginAnimation(0, gameTime);
-                model.overrideFrame = -1;
+                model.overrideAnimationFrameTime = -1;
             }
 
             // next animation
-            if (Keyboard.GetState().IsKeyDown(Keys.N))
+            if (Keyboard.GetState().IsKeyDown(Keys.N) && Pause(gameTime))
             {
-                model.CurrentRunAnimation = model.CurrentRunAnimation++;
-                model.overrideFrame = -1;
+                model.CurrentPlayingAnimationIndex = model.CurrentPlayingAnimationIndex +1;
+                if (model.CurrentPlayingAnimationIndex >= model.originalAnimations.Count)
+                    model.CurrentPlayingAnimationIndex = 0;
+                model.overrideAnimationFrameTime = -1;
             }
 
             // stop animation
-            if (Keyboard.GetState().IsKeyDown(Keys.F) )
+            if (Keyboard.GetState().IsKeyDown(Keys.F) && Pause(gameTime))
                 model.StopAnimation();
+
+            // change interpolation type animation
+            if (Keyboard.GetState().IsKeyDown(Keys.U) && Pause(gameTime))
+                model.UseStaticGeneratedFrames = true;
+            if (Keyboard.GetState().IsKeyDown(Keys.I) && Pause(gameTime))
+                model.UseStaticGeneratedFrames = false;
 
             // override on and set override animation
             if (Keyboard.GetState().IsKeyDown(Keys.Space))
-                model.overrideFrame++;
+                model.overrideAnimationFrameTime+= (float)gameTime.ElapsedGameTime.TotalSeconds * .1f;
 
             // WireframeOnOrOff
-            if (Keyboard.GetState().IsKeyDown(Keys.F5))
+            if (Keyboard.GetState().IsKeyDown(Keys.F5) && Pause(gameTime))
                 WireframeOnOrOff = ! WireframeOnOrOff;
 
             // ShowNormals
             // WireframeOnOrOff
-            if (Keyboard.GetState().IsKeyDown(Keys.F6))
+            if (Keyboard.GetState().IsKeyDown(Keys.F6) && Pause(gameTime))
                 ShowNormals = !ShowNormals;
+
+            if (Keyboard.GetState().IsKeyDown(Keys.O) && Pause(gameTime))
+            {
+                nodeToShow++;
+                if(nodeToShow >= model.flatListToAllNodes.Count)
+                {
+                    nodeToShow = 0;
+                }
+            }
+
+            // z
+            if (Keyboard.GetState().IsKeyDown(Keys.NumPad1) && Pause(gameTime))
+            {
+                cam.Position = new Vector3(0f, 0f, 100f);
+                cam.Up = Vector3.Up;
+                cam.LookAtTargetPosition = new Vector3(0f, 0f, 0f);
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.NumPad2) && Pause(gameTime))
+            {
+                cam.Position = new Vector3(0f, 0f, 400f);
+                cam.Up = Vector3.Up;
+                cam.LookAtTargetPosition = new Vector3(0f, 0f, 0f);
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.NumPad3) && Pause(gameTime))
+            {
+                cam.Position = new Vector3(0f, 0f, 900f);
+                cam.Up = Vector3.Up;
+                cam.LookAtTargetPosition = new Vector3(0f, 0f, 0f);
+            }
+            // x
+            if (Keyboard.GetState().IsKeyDown(Keys.NumPad7) && Pause(gameTime))
+            {
+                cam.Position = new Vector3(100f, 0f, 0f);
+                cam.Up = Vector3.Up;
+                cam.LookAtTargetPosition = new Vector3(0f, 0f, 0f);
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.NumPad8) && Pause(gameTime))
+            {
+                cam.Position = new Vector3(400f, 0f, 0f);
+                cam.Up = Vector3.Up;
+                cam.LookAtTargetPosition = new Vector3(0f, 0f, 0f);
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.NumPad9) && Pause(gameTime))
+            {
+                cam.Position = new Vector3(900f, 0f, 0f);
+                cam.Up = Vector3.Up;
+                cam.LookAtTargetPosition = new Vector3(0f, 0f, 0f);
+            }
+            // y
+            if (Keyboard.GetState().IsKeyDown(Keys.NumPad4) && Pause(gameTime))
+            {
+                cam.Position = new Vector3(0f, 100f, 1f);
+                cam.Up = Vector3.Cross(cam.World.Forward, cam.World.Right);
+                cam.LookAtTargetPosition = new Vector3(0f, 0f, 0f);
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.NumPad5) && Pause(gameTime))
+            {
+                cam.Position = new Vector3(0f, 400f, 1f);
+                cam.Up = Vector3.Cross(cam.World.Forward, cam.World.Right);
+                cam.LookAtTargetPosition = new Vector3(0f, 0f, 0f);
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.NumPad6) && Pause(gameTime))
+            {
+                cam.Position = new Vector3(0f, 900f, 1f);
+                cam.Up = Vector3.Cross(cam.World.Forward, cam.World.Right);
+                cam.LookAtTargetPosition = new Vector3(0f, 0f, 0f);
+            }
 
             lightrot += (float)gameTime.ElapsedGameTime.TotalSeconds * .25f;  //slow down the light rotation.
             if (lightrot > 6.2831f)
                 lightrot = 0;
+            // light transform matrix.
+            lightTransform = Matrix.CreateRotationY(lightrot);
 
             cam.Update(gameTime);
 
@@ -218,86 +304,151 @@ namespace AssimpLoaderExample
             base.Update(gameTime);
         }
 
+
+
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.Black); 
             GraphicsDevice.Clear(ClearOptions.DepthBuffer, Color.Black, 1f, 1);
-            GraphicsDevice.SamplerStates[0] = ss_standard;
+            GraphicsDevice.BlendState = BlendState.Opaque;
+            GraphicsDevice.SamplerStates[0] = ss_point_clamp;
             GraphicsDevice.DepthStencilState = ds_standard_less;
             if(WireframeOnOrOff)
                 GraphicsDevice.RasterizerState = rs_nocullwireframe;
             else
                 GraphicsDevice.RasterizerState = rs_cull_cw_solid;
 
-            // rotate light
-            Matrix lightTransform = Matrix.CreateRotationY(lightrot);
-            var light = Vector3.Transform(LightPosition, lightTransform);
-
-            // model and normals
-
-            riggedEffect.Parameters["World"].SetValue(Matrix.Identity);
+            // set model world
+            var modelWorld = Matrix.Identity;
+            //modelWorld = Matrix.CreateRotationY(1.5f);
+            //modelWorld.Translation = new Vector3(5f, -0f, 0f);
+            // set sphere orientation
+            var sphereOrientation = Matrix.Identity * lightTransform;
+            sphereOrientation.Translation = new Vector3(0, -50f, 0f);
+            // light pos
+            var lightpos = Vector3.Transform(initialLightPosition, lightTransform);
+            // set light to shader
+            riggedEffect.Parameters["WorldLightPosition"].SetValue(lightpos);
+            // set view to shader
             riggedEffect.Parameters["View"].SetValue(cam.View);
+            // set camera world position to shader
             riggedEffect.Parameters["CameraPosition"].SetValue(cam.Position); // cam.Position // cam.View.Translation
-            riggedEffect.Parameters["WorldLightPosition"].SetValue(light);
+            // remake the line
+            lineToLight = new LinePCT(.1f, Color.White, sphereOrientation.Translation, lightpos);
 
+            //_______________________________
             // draw a line to the light source.
+            //_______________________________
 
+            riggedEffect.CurrentTechnique = riggedEffect.Techniques["ColorDraw"];
+            riggedEffect.Parameters["World"].SetValue(Matrix.Identity);
             riggedEffect.Parameters["TextureA"].SetValue(defaultTexture);
-            lineToLight = new LinePCT(.1f, Color.White, Vector3.Zero, light);
+
             lineToLight.Draw(GraphicsDevice, riggedEffect);
+
+            //_______________________________
+            // draw sphere.
+            //_______________________________
+
+            // move the spheres down a bit first
+            riggedEffect.Parameters["World"].SetValue(sphereOrientation);
+
+            riggedEffect.CurrentTechnique = riggedEffect.Techniques["ColorTextureLightingDraw"];
+
+            littleSphere.Draw(GraphicsDevice, riggedEffect);
+            bigShere.Draw(GraphicsDevice, riggedEffect);
+
+            // draw sphere normals
+            riggedEffect.CurrentTechnique = riggedEffect.Techniques["ColorTextureLightingNormalsDraw"];
+            GraphicsDevice.RasterizerState = rs_nocullsolid;
+            if (ShowNormals)
+                primitiveNormalArrows.Draw(GraphicsDevice, riggedEffect);
+
+            if (WireframeOnOrOff)
+                GraphicsDevice.RasterizerState = rs_nocullwireframe;
+            else
+                GraphicsDevice.RasterizerState = rs_cull_cw_solid;
+
+            //_______________________________
+            // model and normals
+            //_______________________________
+
+
+            // draw a little sphere in the model just make sure the model isnt backface.
+            var m = Matrix.Identity;
+            m.Translation = new Vector3(0, 20, 0);
+            riggedEffect.Parameters["World"].SetValue(m);
+            littleSphere.Draw(GraphicsDevice, riggedEffect);
 
             // draw models.
 
             if (model != null)
             {
                 riggedEffect.CurrentTechnique = riggedEffect.Techniques["RiggedModelDraw"];
+                modelWorld = Matrix.Identity;
+                riggedEffect.Parameters["World"].SetValue(modelWorld);
                 model.effect = riggedEffect;
-                model.Draw(GraphicsDevice);
+                model.Draw(GraphicsDevice, modelWorld);
             }
 
             // draw models normals.
 
             riggedEffect.CurrentTechnique = riggedEffect.Techniques["RiggedModelNormalDraw"];
             GraphicsDevice.RasterizerState = rs_nocullsolid;
-
             if (ShowNormals)
                 modelVisualNormals.Draw(GraphicsDevice, riggedEffect);
 
-            // move the spheres down a bit first
-            var m = Matrix.Identity; m.Translation = new Vector3(0, -20f, 0f);
-            riggedEffect.Parameters["World"].SetValue(m);
-
-            // ok this is maddening... as far as i can tell the bones are somehow performing a complete vertice normal inversion or reflection in 3d.
-            // so these model normals have to be inverted in the shader for the lighting calculations which is super confusing.
-
-            //// draw sphere normals
-            //if (ShowNormals)
-            //    primitiveNormalArrows.Draw(GraphicsDevice, riggedEffect);
-
-            // draw sphere.
-
-            riggedEffect.CurrentTechnique = riggedEffect.Techniques["ColorTextureLightingDraw"];
-            riggedEffect.Parameters["TextureA"].SetValue(defaultTexture);
-
-            littleSphere.Draw(GraphicsDevice, riggedEffect);
-
-            bigShere.Draw(GraphicsDevice, riggedEffect);
-
-            // draw sphere normals
-            if (ShowNormals)
-                primitiveNormalArrows.Draw(GraphicsDevice, riggedEffect);
 
             DrawSpriteBatches(gameTime);
             base.Draw(gameTime);
         }
 
+        int bonenodetoshow = 1000;
+        int nodeToShow = 0;
         protected void DrawSpriteBatches(GameTime gameTime)
         {
-            //currentFrameMsg.Clear();
-            //currentFrameMsg.Append("CurrentFrame ").Append(model.currentFrame);
-            //spriteBatch.DrawString(Gu.currentFont, currentFrameMsg, new Vector2(10, 400), Color.Wheat);
+            // ok so now i gotta figure out out to specify if a mesh is animated by bones or not.
+            currentMsg.Clear();
+            currentMsg.Append(" Camera: ").Append(cam.Position.ToStringTrimed());
+            currentMsg.Append("\n Forward: ").Append(cam.Forward.ToStringTrimed()).Append(" Up: ").Append(cam.Up.ToStringTrimed());
+            currentMsg.Append("\n Current Animation [").Append(model.CurrentPlayingAnimationIndex).Append("] of "+ model.originalAnimations.Count + "   Name: ").Append(model.originalAnimations[model.CurrentPlayingAnimationIndex].animationName);
+            currentMsg.Append("\n Current Frame: ").Append(model.currentFrame.ToStringTrimed()).Append(" / Total Frames: ").Append(model.originalAnimations[model.CurrentPlayingAnimationIndex].TotalFrames);
+            currentMsg.Append("\n Current AnimationTime: ").Append(model.currentAnimationFrameTime.ToStringTrimed());
+            currentMsg.Append(" Total Animation Durration: ").Append(model.originalAnimations[model.CurrentPlayingAnimationIndex].DurationInSeconds.ToStringTrimed());
+            
+            if (model.flatListToBoneNodes.Count > bonenodetoshow)
+            {
+                currentMsg.Append("\n\n Flat BoneId[" + bonenodetoshow + "] of "+ model.flatListToBoneNodes.Count + "  Name: " + model.flatListToBoneNodes[bonenodetoshow].name + " ");
+                currentMsg.Append(model.flatListToBoneNodes[bonenodetoshow].LocalTransformMg.SrtInfoToString(""));
+            }
+            
+            if (model.flatListToAllNodes.Count > nodeToShow)
+            {
+                currentMsg.Append("\n\n Flat NodeId[" + nodeToShow + "] of " + model.flatListToAllNodes.Count + " Name: " + model.flatListToAllNodes[nodeToShow].name + " ");
+                currentMsg.Append(model.flatListToAllNodes[nodeToShow].LocalTransformMg.SrtInfoToString(""));
+                //currentMsg.Append(model.flatListToAllNodes[nodeToShow].CombinedTransformMg.SrtInfoToString(""));
+            }
+
+            spriteBatch.Begin(SpriteSortMode.Immediate);
+            spriteBatch.DrawString(currentFont, currentMsg, new Vector2(10, 10), Color.Wheat);
+            spriteBatch.End();
         }
 
+
+        float pause = 0f;
+        bool Pause(GameTime gametime)
+        {
+            if (pause < 0)
+            {
+                pause = .5f;
+                return true;
+            }
+            else
+            {
+                pause -= (float)gametime.ElapsedGameTime.TotalSeconds;
+                return false;
+            }
+        }
 
     }
 
