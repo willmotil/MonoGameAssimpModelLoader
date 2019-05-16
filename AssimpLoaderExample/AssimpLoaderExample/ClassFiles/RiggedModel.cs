@@ -59,25 +59,32 @@ namespace AssimpLoaderExample
 
         public Effect effect;
         public int numberOfBonesInUse = 0;
-        public int maxGlobalBones = 128; // 78
+        public int numberOfNodesInUse = 0;
+        public int maxGlobalBones = 128; // 78       
+        public Matrix[] globalShaderMatrixs; // these are the real final bone matrices they end up on the shader.
         public List<RiggedModelNode> flatListToBoneNodes = new List<RiggedModelNode>();
-        public Matrix[] globalShaderMatrixs; // these must be converted to mg type matrices before sending them to the shader i think.
+        public List<RiggedModelNode> flatListToAllNodes = new List<RiggedModelNode>();
         public RiggedModelMesh[] meshes;
-        public RiggedModelNode rootNodeOfTree; // the actual scene root node the basis of the model from here we can locate any node in the chain.
-        public RiggedModelNode firstRealBoneInTree; // the actual first bone in the scene the basis of the users skeletal model he created.
-        public RiggedModelNode globalPreTransformNode; // the accumulated orientations and scalars prior to the first bone acts as a scalar to the actual bone local transforms from assimp.
-        public Matrix meshTransform = Matrix.Identity; // dunno what this is for to be honest.
+        public RiggedModelNode rootNodeOfTree; // The actual model root node the base node of the model from here we can locate any node in the chain.
+        public RiggedModelNode firstRealBoneInTree; // unused as of yet. The actual first bone in the scene the basis of the users skeletal model he created.
+        //public RiggedModelNode globalPreTransformNode; // the accumulated orientations and scalars prior to the first bone acts as a scalar to the actual bone local transforms from assimp.
 
         // initial assimp animations
-        public List<RiggedAnimation> origAnim = new List<RiggedAnimation>();
+        public List<RiggedAnimation> originalAnimations = new List<RiggedAnimation>();
         int currentAnimation = 0;
         public int currentFrame = 0;
         public bool animationRunning = false;
         bool loopAnimation = true;
         float timeStart = 0f;
+        public float currentAnimationFrameTime = 0;
+
+        /// <summary>
+        /// Uses static animation frames instead of interpolated frames.
+        /// </summary>
+        public bool UseStaticGeneratedFrames = false;
 
         // mainly for testing to step thru each frame.
-        public int overrideFrame = -1;
+        public float overrideAnimationFrameTime = -1;
 
         #endregion
 
@@ -135,48 +142,83 @@ namespace AssimpLoaderExample
             if (animationRunning)
                 UpdateModelAnimations(gameTime);
             IterateUpdate(rootNodeOfTree);
+            UpdateMeshTransforms();
         }
-
+        
         /// <summary>
         /// Gets the animation frame corresponding to the elapsed time for all the nodes and loads them into the model node transforms.
         /// </summary>
-        public void UpdateModelAnimations(GameTime gameTime)
+        private void UpdateModelAnimations(GameTime gameTime)
         {
-            if (origAnim.Count > 0 && currentAnimation < origAnim.Count)
+            if (originalAnimations.Count > 0 && currentAnimation < originalAnimations.Count)
             {
-                float currentRunning = (float)(gameTime.TotalGameTime.TotalSeconds) - timeStart;
-                currentFrame = (int)(currentRunning / origAnim[currentAnimation].SecondsPerFrame);
-                int numbOfFrames = origAnim[currentAnimation].TotalFrames;
+                currentAnimationFrameTime = ((float)(gameTime.TotalGameTime.TotalSeconds) - timeStart); // *.1f;
+                float animationTotalDuration;
+                if(loopAnimation)
+                    animationTotalDuration = (float)originalAnimations[currentAnimation].DurationInSecondsLooping;
+                else
+                    animationTotalDuration = (float)originalAnimations[currentAnimation].DurationInSeconds;
 
                 // just for seeing a single frame lets us override the current frame.
-                if (overrideFrame > -1)
+                if (overrideAnimationFrameTime >= 0f)
                 {
-                    currentFrame = overrideFrame;
-                    if (overrideFrame > numbOfFrames)
-                        overrideFrame = 0;
+                    currentAnimationFrameTime = overrideAnimationFrameTime;
+                    if (overrideAnimationFrameTime > animationTotalDuration)
+                        overrideAnimationFrameTime = 0f;
                 }
 
-                // restart the animation.
-                if (loopAnimation && timeStart != 0 && currentFrame >= numbOfFrames)
+                // if we are using static frames.
+                currentFrame = (int)(currentAnimationFrameTime / originalAnimations[currentAnimation].SecondsPerFrame);
+                int numbOfFrames = originalAnimations[currentAnimation].TotalFrames;
+
+                // usually we aren't using static frames and we might be looping.
+                if (currentAnimationFrameTime > animationTotalDuration)
                 {
-                    currentFrame = 0;
-                    timeStart = (float)(gameTime.TotalGameTime.TotalSeconds);
+                    if (loopAnimation)
+                    {
+                        currentAnimationFrameTime = currentAnimationFrameTime - animationTotalDuration;
+                        timeStart = (float)(gameTime.TotalGameTime.TotalSeconds); // + currentRunning;
+                    }
+                    else // animation completed
+                    {
+                        currentFrame = 0;
+                        timeStart = 0;
+                        animationRunning = false;
+                    }
                 }
 
-                // set the local node transforms from the frame.
-                if (currentFrame < numbOfFrames)
+                // use the precalculated frame time lookups.
+                if (UseStaticGeneratedFrames)
                 {
-                    int nodeCount = origAnim[currentAnimation].animatedNodes.Count;
+                    // set the local node transforms from the frame.
+                    if (currentFrame < numbOfFrames)
+                    {
+                        int nodeCount = originalAnimations[currentAnimation].animatedNodes.Count;
+                        for (int nodeLooped = 0; nodeLooped < nodeCount; nodeLooped++)
+                        {
+                            var animNodeframe = originalAnimations[currentAnimation].animatedNodes[nodeLooped];
+                            var node = animNodeframe.nodeRef;
+                            node.LocalTransformMg = animNodeframe.frameOrientations[currentFrame];
+                        }
+                    }
+                }
+
+                // use the calculated interpolated frames directly
+                if (UseStaticGeneratedFrames == false)
+                {
+                    int nodeCount = originalAnimations[currentAnimation].animatedNodes.Count;
                     for (int nodeLooped = 0; nodeLooped < nodeCount; nodeLooped++)
                     {
-                        var animNodeframe = origAnim[currentAnimation].animatedNodes[nodeLooped];
+                        var animNodeframe = originalAnimations[currentAnimation].animatedNodes[nodeLooped];
                         var node = animNodeframe.nodeRef;
-                        node.LocalTransformMg = animNodeframe.frameOrientations[currentFrame];
+                        // use dynamic interpolated frames
+                        node.LocalTransformMg = originalAnimations[currentAnimation].Interpolate(currentAnimationFrameTime, animNodeframe, loopAnimation);    
                     }
+
                 }
             }
         }
-
+    
         /// <summary>
         /// Updates the node transforms
         /// </summary>
@@ -186,6 +228,11 @@ namespace AssimpLoaderExample
                 node.CombinedTransformMg = node.LocalTransformMg * node.parent.CombinedTransformMg;
             else
                 node.CombinedTransformMg = node.LocalTransformMg;
+
+            //// humm little test
+            //if (node.name == "Armature")
+            //    node.CombinedTransformMg = Matrix.Identity;
+
             // set to the final shader matrix.
             if (node.isThisARealBone)
                 globalShaderMatrixs[node.boneShaderFinalTransformIndex] = node.OffsetMatrixMg * node.CombinedTransformMg;
@@ -194,16 +241,36 @@ namespace AssimpLoaderExample
                 IterateUpdate(n);
         }
 
+        // ok ... in draw we should now be able to call on this in relation to the world transform.
+        private void UpdateMeshTransforms()
+        {
+            // try to handle when we just have mesh transforms
+            for (int i = 0; i < meshes.Length; i++)
+            {
+                // This feels errr is hacky.
+                meshes[i].nodeRefContainingAnimatedTransform.CombinedTransformMg = meshes[i].nodeRefContainingAnimatedTransform.LocalTransformMg * meshes[i].nodeRefContainingAnimatedTransform.InvOffsetMatrixMg;
+                if (originalAnimations[CurrentPlayingAnimationIndex].animatedNodes.Count > 1)
+                {
+                    meshes[i].nodeRefContainingAnimatedTransform.CombinedTransformMg = Matrix.Identity;
+                }
+                   
+            }
+        }
+
+
         /// <summary>
         /// Sets the global final bone matrices to the shader and draws it.
         /// </summary>
-        public void Draw(GraphicsDevice gd)
+        public void Draw(GraphicsDevice gd, Matrix world)
         {
             effect.Parameters["Bones"].SetValue(globalShaderMatrixs);
             foreach (RiggedModelMesh m in meshes)
-            {
+            {               
                 if (m.texture != null)
                     effect.Parameters["TextureA"].SetValue(m.texture);
+                // We will add in the mesh transform to the world thru the mesh we could do it to every single bone but this way saves a bunch of matrix multiplys. 
+                //effect.Parameters["World"].SetValue(world * m.MeshCombinedFinalTransformMg);
+                effect.Parameters["World"].SetValue(world * m.nodeRefContainingAnimatedTransform.CombinedTransformMg); // same thing
                 var e = this.effect.CurrentTechnique;
                 e.Passes[0].Apply();
                 gd.DrawUserIndexedPrimitives(Microsoft.Xna.Framework.Graphics.PrimitiveType.TriangleList, m.vertices, 0, m.vertices.Length, m.indices, 0, m.indices.Length / 3, VertexPositionTextureNormalTangentWeights.VertexDeclaration);
@@ -214,13 +281,13 @@ namespace AssimpLoaderExample
 
         #region Region animation stuff
 
-        public int CurrentRunAnimation
+        public int CurrentPlayingAnimationIndex
         {
             get { return currentAnimation; }
             set {
                 var n = value;
-                if (n >= origAnim.Count)
-                    n = origAnim.Count - 1;
+                if (n >= originalAnimations.Count)
+                    n = 0;
                 currentAnimation = n;
             }
         }
@@ -228,10 +295,10 @@ namespace AssimpLoaderExample
         /// <summary>
         /// This takes the original assimp animations and calculates a complete steady orientation matrix per frame for the fps of the animation duration.
         /// </summary>
-        public void CreateAnimationFrames(int fps)
+        public void CreateStaticAnimationLookUpFrames(int fps, bool addLoopingTime)
         {
-            foreach (var anim in origAnim)
-                anim.SetAnimationFpsCreateFrames(fps, this);
+            foreach (var anim in originalAnimations)
+                anim.SetAnimationFpsCreateFrames(fps, this, addLoopingTime);
         }
 
         public void BeginAnimation(int animationIndex, GameTime gametime)
@@ -248,33 +315,13 @@ namespace AssimpLoaderExample
 
         #endregion
 
-        #region Region not sure these mesh and global transforms are really necessary.
-
-        /// <summary>
-        /// This is all the local transforms combined prior to the first bone.
-        /// </summary>
-        public Matrix GetGlobalPreTransform()
-        {
-            //return globalPreTransformNode.CombinedLocalTransformAssimp;
-            return globalPreTransformNode.LocalTransformMg;
-        }
-
-        /// <summary>
-        /// This would be primarily used to get a transform that when multiplied by vertice vectors will scale those vertices to the same size it was in the model editor.
-        /// As such its questionable if i would really need it much maybe when i dive into the animation it will have a requisite use.
-        /// </summary>
-        public Matrix GetBoneMeshZeroTransform()
-        {
-            return meshes[0].MeshTransformMg;
-        }
-
-        #endregion
 
         /// <summary>
         /// Models are composed of meshes each with there own textures and sets of vertices associated to them.
         /// </summary>
         public class RiggedModelMesh
         {
+            public RiggedModelNode nodeRefContainingAnimatedTransform;
             public string textureName;
             public string textureNormalMapName;
             public string textureHeightMapName;
@@ -287,7 +334,9 @@ namespace AssimpLoaderExample
             public int NumberOfIndices { get { return indices.Length; } }
             public int NumberOfVertices { get { return vertices.Length; } }
             public int MaterialIndex { get; set; }
-            public Matrix MeshTransformMg { get; set; }
+            public Matrix LinkedNodesOffsetMg { get; set; }
+            public Matrix MeshInitialTransformFromNodeMg { get; set; }
+            public Matrix MeshCombinedFinalTransformMg { get; set; }
             /// <summary>
             /// Defines the minimum vertices extent in each direction x y z in system coordinates.
             /// </summary>
@@ -312,13 +361,16 @@ namespace AssimpLoaderExample
             public RiggedModelNode parent;
             public List<RiggedModelNode> children = new List<RiggedModelNode>();
 
-            // probably don't need most of these they are from the debug phase
+            // probably don't need most of these they are from the debug phase.
             public bool isTheRootNode = false;
             public bool isTheGlobalPreTransformNode = false; // marks the node prior to the first bone...   (which is a accumulated pre transform multiplier to other bones)?.
-            public bool isTheFirstBone = false; // marked as root bone
-            public bool isThisARealBone = false; // a actual bone with a bone offset
-            public bool isThisNodeAlongTheBoneRoute = false; // similar to is isThisNodeTransformNecessary but can include the nodes after bones.
+            public bool isTheFirstBone = false; // marked as root bone.
+            public bool isThisARealBone = false; // a actual bone with a bone offset.
+            public bool isANodeAlongTheBoneRoute = false; // similar to is isThisNodeTransformNecessary but can include the nodes after bones.
             public bool isThisNodeTransformNecessary = false; // has a requisite transformation in this node that a bone will need later.
+            public bool isThisAMeshNode = false; // is this actually a mesh node.
+            public bool isThisTheFirstMeshNode = false;
+            //public RiggedModelMesh meshRef; // no point in this as there can be many refs per node we link in the opposite direction.
 
             /// <summary>
             /// The inverse offset takes one from model space to bone space to say it will have a position were the bone is in the world.
@@ -356,6 +408,7 @@ namespace AssimpLoaderExample
             public string animationName = "";
             public double DurationInTicks = 0;
             public double DurationInSeconds = 0;
+            public double DurationInSecondsLooping = 0;
             public double TicksPerSecond = 0;
             public double SecondsPerFrame = 0;
             public double TicksPerFramePerSecond = 0;
@@ -363,21 +416,24 @@ namespace AssimpLoaderExample
 
             private int fps = 0;
 
-            //public bool HasMeshAnimations = false;
             //public int MeshAnimationNodeCount;
+            public bool HasMeshAnimations = false;
             public bool HasNodeAnimations = false;
             public List<RiggedAnimationNodes> animatedNodes;
 
-            public void SetAnimationFpsCreateFrames(int animationFramesPerSecond, RiggedModel model)
+
+            public void SetAnimationFpsCreateFrames(int animationFramesPerSecond, RiggedModel model, bool loopAnimation)
             {
+                Console.WriteLine("________________________________________________________");
+                Console.WriteLine("Animation name: " + animationName + "  DurationInSeconds: " + DurationInSeconds + "  DurationInSecondsLooping: " + DurationInSecondsLooping);
                 fps = animationFramesPerSecond;
                 TotalFrames = (int)(DurationInSeconds * (double)(animationFramesPerSecond));
                 TicksPerFramePerSecond = TicksPerSecond / (double)(animationFramesPerSecond);
                 SecondsPerFrame = (1d / (animationFramesPerSecond));
-                CalculateNewInterpolatedAnimationFrames(model);
+                CalculateNewInterpolatedAnimationFrames(model, loopAnimation);
             }
 
-            private void CalculateNewInterpolatedAnimationFrames(RiggedModel model)
+            private void CalculateNewInterpolatedAnimationFrames(RiggedModel model, bool loopAnimation)
             {
                 // Loop nodes.
                 for (int i = 0; i < animatedNodes.Count; i++)
@@ -394,29 +450,33 @@ namespace AssimpLoaderExample
                     {
                         // Find and set the interpolated value from the s r t elements based on time.
                         var frameTime = j * SecondsPerFrame; // + .0001d;
-                        animatedNodes[i].frameOrientations[j] = Interpolate(frameTime, animatedNodes[i]);
+                        animatedNodes[i].frameOrientations[j] = Interpolate(frameTime, animatedNodes[i], loopAnimation);
                         animatedNodes[i].frameOrientationTimes[j] = frameTime;
                     }
-                    Console.WriteLine("");
                 }
             }
 
+
             /// <summary>
-            /// Hummm its just a little bit off it seems..
+            /// ToDo when we are looping back i think i need to artificially increase the duration in order to get a slightly smoother animation from back to front.
             /// </summary>
-            public Matrix Interpolate(double animTime, RiggedAnimationNodes n)
+            public Matrix Interpolate(double animTime, RiggedAnimationNodes n, bool loopAnimation)
             {
-                while (animTime > DurationInSeconds)
-                    animTime -= DurationInSeconds;
+                var durationSecs = DurationInSeconds;
+                if (loopAnimation)
+                    durationSecs = DurationInSecondsLooping; 
+
+                while (animTime > durationSecs)
+                    animTime -= durationSecs;
 
                 var nodeAnim = n;
                 // 
                 Quaternion q2 = nodeAnim.qrot[0];
                 Vector3 p2 = nodeAnim.position[0];
                 Vector3 s2 = nodeAnim.scale[0];
-                double tq2 = nodeAnim.qrotTime[0]; // =0;
-                double tp2 = nodeAnim.positionTime[0]; ; // =0;
-                double ts2 = nodeAnim.scaleTime[0]; //=0;
+                double tq2 = nodeAnim.qrotTime[0]; 
+                double tp2 = nodeAnim.positionTime[0]; ; 
+                double ts2 = nodeAnim.scaleTime[0]; 
                 // 
                 int i1 = 0;
                 Quaternion q1 = nodeAnim.qrot[i1];
@@ -426,64 +486,132 @@ namespace AssimpLoaderExample
                 double tp1 = nodeAnim.positionTime[i1];
                 double ts1 = nodeAnim.scaleTime[i1];
                 // 
-                int qindex2 = 0; int qindex1 = 0; // for output to console only
-                int pindex2 = 0; int pindex1 = 0; // for output to console only
+                int qindex2 = 0; int qindex1 = 0; 
+                int pindex2 = 0; int pindex1 = 0;
+                int sindex2 = 0; int sindex1 = 0;
                 //
-                for (int frame2 = nodeAnim.qrot.Count -1; frame2 > -1; frame2--)
+                var qiat = nodeAnim.qrotTime[nodeAnim.qrotTime.Count - 1];
+                if (animTime > qiat)
                 {
-                    var t = nodeAnim.qrotTime[frame2];
-                    if (animTime <= t)
+                    tq1 = nodeAnim.qrotTime[nodeAnim.qrotTime.Count - 1];
+                    q1 = nodeAnim.qrot[nodeAnim.qrot.Count - 1];
+                    tq2 = nodeAnim.qrotTime[0] + durationSecs;
+                    q2 = nodeAnim.qrot[0];
+                    qindex1 = nodeAnim.qrot.Count - 1;
+                    qindex2 = 0;
+                }
+                else
+                {
+                    //
+                    for (int frame2 = nodeAnim.qrot.Count - 1; frame2 > -1; frame2--)
                     {
-                        //1___
-                        q2 = nodeAnim.qrot[frame2];
-                        tq2 = nodeAnim.qrotTime[frame2];
-                        qindex2 = frame2; // for output to console only
-                        //2___
-                        var frame1 = frame2 - 1;
-                        if (frame1 < 0)
+                        var t = nodeAnim.qrotTime[frame2];
+                        if (animTime <= t)
                         {
-                            frame1 = nodeAnim.qrot.Count - 1;  
-                            tq1 = nodeAnim.qrotTime[frame1] - DurationInSeconds;                          
+                            //1___
+                            q2 = nodeAnim.qrot[frame2];
+                            tq2 = nodeAnim.qrotTime[frame2];
+                            qindex2 = frame2; // for output to console only
+                                              //2___
+                            var frame1 = frame2 - 1;
+                            if (frame1 < 0)
+                            {
+                                frame1 = nodeAnim.qrot.Count - 1;
+                                tq1 = nodeAnim.qrotTime[frame1] - durationSecs;
+                            }
+                            else
+                            {
+                                tq1 = nodeAnim.qrotTime[frame1];
+                            }
+                            q1 = nodeAnim.qrot[frame1];
+                            qindex1 = frame1; // for output to console only
                         }
-                        else
-                        {
-                            tq1 = nodeAnim.qrotTime[frame1];
-                        }
-                        q1 = nodeAnim.qrot[frame1];
-                        qindex1 = frame1; // for output to console only
                     }
                 }
                 //
-                for (int frame2 = nodeAnim.position.Count - 1; frame2 > -1; frame2--)
+                var piat = nodeAnim.positionTime[nodeAnim.positionTime.Count - 1];
+                if (animTime > piat)
                 {
-                    var t = nodeAnim.positionTime[frame2];
-                    if (animTime <= t)
+                    tp1 = nodeAnim.positionTime[nodeAnim.positionTime.Count - 1];
+                    p1 = nodeAnim.position[nodeAnim.position.Count - 1];
+                    tp2 = nodeAnim.positionTime[0] + durationSecs;
+                    p2 = nodeAnim.position[0];
+                    pindex1 = nodeAnim.position.Count - 1;
+                    pindex2 = 0;
+                }
+                else
+                {
+                    for (int frame2 = nodeAnim.position.Count - 1; frame2 > -1; frame2--)
                     {
-                        //1___
-                        p2 = nodeAnim.position[frame2];
-                        tp2 = nodeAnim.positionTime[frame2];
-                        qindex2 = frame2; // for output to console only
-                        //2___
-                        var frame1 = frame2 - 1;
-                        if (frame1 < 0)
+                        var t = nodeAnim.positionTime[frame2];
+                        if (animTime <= t)
                         {
-                            frame1 = nodeAnim.position.Count - 1;
-                            tp1 = nodeAnim.positionTime[frame1] - DurationInSeconds;
+                            //1___
+                            p2 = nodeAnim.position[frame2];
+                            tp2 = nodeAnim.positionTime[frame2];
+                            pindex2 = frame2; // for output to console only
+                                              //2___
+                            var frame1 = frame2 - 1;
+                            if (frame1 < 0)
+                            {
+                                frame1 = nodeAnim.position.Count - 1;
+                                tp1 = nodeAnim.positionTime[frame1] - durationSecs;
+                            }
+                            else
+                            {
+                                tp1 = nodeAnim.positionTime[frame1];
+                            }
+                            p1 = nodeAnim.position[frame1];
+                            pindex1 = frame1; // for output to console only
                         }
-                        else
+                    }
+                }
+                // scale
+                var siat = nodeAnim.scaleTime[nodeAnim.scaleTime.Count - 1];
+                if (animTime > siat)
+                {
+                    ts1 = nodeAnim.scaleTime[nodeAnim.scaleTime.Count - 1];
+                    s1 = nodeAnim.scale[nodeAnim.scale.Count - 1];
+                    ts2 = nodeAnim.scaleTime[0] + durationSecs;
+                    s2 = nodeAnim.scale[0];
+                    sindex1 = nodeAnim.scale.Count - 1;
+                    sindex2 = 0;
+                }
+                else
+                {
+                    for (int frame2 = nodeAnim.scale.Count - 1; frame2 > -1; frame2--)
+                    {
+                        var t = nodeAnim.scaleTime[frame2];
+                        if (animTime <= t)
                         {
-                            tp1 = nodeAnim.positionTime[frame1];
+                            //1___
+                            s2 = nodeAnim.scale[frame2];
+                            ts2 = nodeAnim.scaleTime[frame2];
+                            sindex2 = frame2; // for output to console only
+                                              //2___
+                            var frame1 = frame2 - 1;
+                            if (frame1 < 0)
+                            {
+                                frame1 = nodeAnim.scale.Count - 1;
+                                ts1 = nodeAnim.scaleTime[frame1] - durationSecs;
+                            }
+                            else
+                            {
+                                ts1 = nodeAnim.scaleTime[frame1];
+                            }
+                            s1 = nodeAnim.scale[frame1];
+                            sindex1 = frame1; // for output to console only
                         }
-                        p1 = nodeAnim.position[frame1];
-                        qindex1 = frame1; // for output to console only
                     }
                 }
 
-                float tqi = 0; // primarily for console output.
-                float tpi = 0; // primarily for console output.
+
+                float tqi = 0; 
+                float tpi = 0; 
+                float tsi = 0; 
 
                 Quaternion q;
-                if (tq2 != tq1)
+                if (qindex1 != qindex2)
                 {
                     tqi = (float)GetInterpolationTimeRatio(tq1, tq2, animTime);
                     q = Quaternion.Slerp(q1, q2, tqi);
@@ -495,7 +623,7 @@ namespace AssimpLoaderExample
                 }
 
                 Vector3 p;
-                if (tp2 != tp1)
+                if (pindex1 != pindex2)
                 {
                     tpi = (float)GetInterpolationTimeRatio(tp1, tp2, animTime);
                     p = Vector3.Lerp(p1, p2, tpi);
@@ -506,16 +634,34 @@ namespace AssimpLoaderExample
                     p = p2;
                 }
 
-                if (targetNodeConsoleName == n.nodeName || targetNodeConsoleName == "")
+                Vector3 s;
+                if (sindex1 != sindex2)
                 {
-                    Console.WriteLine("" + "AnimationTime: " + animTime.ToStringTrimed());
-                    Console.WriteLine(" q : " + " index1: " + qindex1 + " index2: " + qindex2 + " time1: " + tq1.ToStringTrimed() + "  time2: " + tq2.ToStringTrimed() + "  interpolationTime: " + tqi.ToStringTrimed() + "  quaternion: " + q.ToStringTrimed());
-                    Console.WriteLine(" p : " + " index1: " + pindex1 + " index2: " + pindex2 + " time1: " + tp1.ToStringTrimed() + "  time2: " + tp2.ToStringTrimed() + "  interpolationTime: " + tpi.ToStringTrimed() + "  position: " + p.ToStringTrimed());
+                    tsi = (float)GetInterpolationTimeRatio(ts1, ts2, animTime);
+                    s = Vector3.Lerp(s1, s2, tsi);
+                }
+                else
+                {
+                    tsi = (float)ts2;
+                    s = s2;
                 }
 
-                var r = Matrix.CreateFromQuaternion(q);
-                r.Translation = p;
-                return r; 
+                ////if (targetNodeConsoleName == n.nodeName || targetNodeConsoleName == "")
+                ////{
+                //    Console.WriteLine("" + "AnimationTime: " + animTime.ToStringTrimed());
+                //    Console.WriteLine(" q : " + " index1: " + qindex1 + " index2: " + qindex2 + " time1: " + tq1.ToStringTrimed() + "  time2: " + tq2.ToStringTrimed() + "  interpolationTime: " + tqi.ToStringTrimed() + "  quaternion: " + q.ToStringTrimed());
+                //    Console.WriteLine(" p : " + " index1: " + pindex1 + " index2: " + pindex2 + " time1: " + tp1.ToStringTrimed() + "  time2: " + tp2.ToStringTrimed() + "  interpolationTime: " + tpi.ToStringTrimed() + "  position: " + p.ToStringTrimed());
+                //    Console.WriteLine(" s : " + " index1: " + sindex1 + " index2: " + sindex2 + " time1: " + ts1.ToStringTrimed() + "  time2: " + ts2.ToStringTrimed() + "  interpolationTime: " + tsi.ToStringTrimed() + "  scale: " + s.ToStringTrimed());
+                ////}
+
+                //s *= .01f;
+
+                var ms = Matrix.CreateScale(s);
+                var mr = Matrix.CreateFromQuaternion(q);
+                var mt = Matrix.CreateTranslation(p);
+                var m = mr * ms * mt;
+                //var m = mr  * mt;
+                return m;
             }
 
             public double GetInterpolationTimeRatio(double s, double e, double val)
@@ -602,5 +748,4 @@ namespace AssimpLoaderExample
         public static int OffsetVector4() { var s = sizeof(float) * 4; currentByteSize += s; return currentByteSize - s; }
     }
 }
-
 
