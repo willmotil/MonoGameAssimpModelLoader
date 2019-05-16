@@ -16,7 +16,10 @@ qe forward back the arrows are strafing movement zc roll and aswd are look at ke
 number pad keys quick change view.
 .
 
-Future plans later down the road is to add a few things to edit the models if possible.
+
+ <img src="https://raw.githubusercontent.com/willmotil/MonoGameAssimpModelLoader/master/Dude.png"  height="400" width="600"> 
+ 
+ Future plans later down the road is to add a few things to edit the models if possible.
 
 * Animation edit to add to or edit animations.
 
@@ -33,5 +36,3 @@ Future plans later down the road is to add a few things to edit the models if po
   So that this whole thing may just become a intermediate converter in the end.
 
 .
-
- <img src="https://raw.githubusercontent.com/willmotil/MonoGameAssimpModelLoader/master/Dude.png"  height="400" width="600"> 
